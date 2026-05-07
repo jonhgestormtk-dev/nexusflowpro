@@ -55,10 +55,9 @@ export default function BillingPage() {
   const [searchTerm, setSearchTerm] = React.useState("")
   const [isProcessing, setIsProcessing] = React.useState(false)
 
-  // Sincronização em tempo real das faturas
+  // Sincronização em tempo real das faturas - Garantindo orderBy consistente
   const invoicesQuery = useMemoFirebase(() => {
     if (!user) return null
-    // Ordenamos por createdAt desc para ver as faturas novas primeiro
     return query(collection(db, "invoices"), orderBy("createdAt", "desc"))
   }, [db, user])
 
@@ -72,24 +71,28 @@ export default function BillingPage() {
 
   const filteredInvoices = React.useMemo(() => {
     if (!invoices) return []
+    const term = searchTerm.toLowerCase()
     return invoices.filter(inv => {
-      const nameMatch = inv.clientName?.toLowerCase().includes(searchTerm.toLowerCase())
-      const idMatch = inv.id?.toLowerCase().includes(searchTerm.toLowerCase())
-      return nameMatch || idMatch
+      const name = (inv.clientName || "").toLowerCase()
+      const id = (inv.id || "").toLowerCase()
+      return name.includes(term) || id.includes(term)
     })
   }, [invoices, searchTerm])
 
   const stats = React.useMemo(() => {
     if (!invoices || !contracts) return { mrr: 0, pending: 0, delinquency: 0 }
 
-    const mrr = contracts.reduce((acc, curr) => acc + (Number(curr.monthlyValue) || 0), 0)
+    const mrr = contracts
+      .filter(c => c.status === "Ativo")
+      .reduce((acc, curr) => acc + (Number(curr.monthlyValue) || 0), 0)
+    
     const pending = invoices
       .filter(inv => inv.paymentStatus === "Pendente")
       .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
     
     const today = new Date()
     const delinquency = invoices
-      .filter(inv => inv.paymentStatus !== "Pago" && new Date(inv.dueDate) < today)
+      .filter(inv => inv.paymentStatus !== "Pago" && inv.dueDate && new Date(inv.dueDate) < today)
       .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
 
     return { mrr, pending, delinquency }
@@ -123,7 +126,7 @@ export default function BillingPage() {
         title: "Sincronização Finalizada",
         description: "Status de faturas atualizados com o banco de dados.",
       })
-    }, 1500)
+    }, 1000)
   }
 
   return (
@@ -131,7 +134,7 @@ export default function BillingPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between px-1">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Débitos e Faturamento</h1>
-          <p className="text-muted-foreground">Gestão financeira e acompanhamento de faturas pendentes.</p>
+          <p className="text-muted-foreground">Gestão financeira e acompanhamento de faturas em tempo real.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="border-border hidden sm:flex" onClick={() => toast({ title: "Exportação", description: "CSV gerado com sucesso." })}>
@@ -158,7 +161,7 @@ export default function BillingPage() {
               {loadingContracts ? "..." : `R$ ${stats.mrr.toLocaleString('pt-BR')}`}
             </div>
             <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-emerald-500">
-              <TrendingUp className="h-3 w-3" /> ATUALIZADO EM TEMPO REAL
+              <TrendingUp className="h-3 w-3" /> CONTRATOS ATIVOS
             </div>
           </CardContent>
         </Card>
@@ -232,10 +235,10 @@ export default function BillingPage() {
                 filteredInvoices.map((inv) => (
                   <TableRow key={inv.id} className="hover:bg-muted/20 transition-colors">
                     <TableCell className="font-mono text-[10px] font-bold text-primary">#{inv.id.slice(-6).toUpperCase()}</TableCell>
-                    <TableCell className="font-semibold text-sm truncate max-w-[200px]">{inv.clientName || "Cliente não identificado"}</TableCell>
-                    <TableCell className="font-bold text-sm text-foreground">R$ {Number(inv.amount).toLocaleString('pt-BR')}</TableCell>
+                    <TableCell className="font-semibold text-sm truncate max-w-[250px]">{inv.clientName || "Cliente não identificado"}</TableCell>
+                    <TableCell className="font-bold text-sm text-foreground">R$ {Number(inv.amount || 0).toLocaleString('pt-BR')}</TableCell>
                     <TableCell className="text-muted-foreground text-xs">
-                      {new Date(inv.dueDate).toLocaleDateString('pt-BR')}
+                      {inv.dueDate ? new Date(inv.dueDate).toLocaleDateString('pt-BR') : "N/A"}
                     </TableCell>
                     <TableCell>
                       <Badge 
@@ -243,11 +246,11 @@ export default function BillingPage() {
                         className={cn(
                           "font-black text-[9px] tracking-widest px-2 py-0.5",
                           inv.paymentStatus === "Pago" ? "border-emerald-500/30 text-emerald-500 bg-emerald-500/5" :
-                          new Date(inv.dueDate) < new Date() ? "border-destructive/30 text-destructive bg-destructive/5" :
+                          inv.dueDate && new Date(inv.dueDate) < new Date() ? "border-destructive/30 text-destructive bg-destructive/5" :
                           "border-accent/30 text-accent bg-accent/5"
                         )}
                       >
-                        {inv.paymentStatus === "Pendente" && new Date(inv.dueDate) < new Date() ? "ATRASADO" : inv.paymentStatus.toUpperCase()}
+                        {inv.paymentStatus === "Pendente" && inv.dueDate && new Date(inv.dueDate) < new Date() ? "ATRASADO" : (inv.paymentStatus || "PENDENTE").toUpperCase()}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">

@@ -94,15 +94,6 @@ export default function ContractsPage() {
     setIsUploading(true)
     const reader = new FileReader()
 
-    reader.onerror = () => {
-      setIsUploading(false)
-      toast({
-        variant: "destructive",
-        title: "Erro na leitura",
-        description: "Não foi possível ler o arquivo localmente.",
-      })
-    }
-
     reader.onload = async () => {
       try {
         const dataUri = reader.result as string
@@ -135,8 +126,25 @@ export default function ContractsPage() {
     setIsSaving(true)
 
     const now = new Date();
-    const dueDate = new Date();
-    dueDate.setDate(now.getDate() + 30);
+    
+    // Tenta usar a data do contrato para o vencimento da primeira fatura
+    let dueDate = new Date();
+    try {
+      if (extractedData.startDate && extractedData.startDate.includes('/')) {
+        const [day, month, year] = extractedData.startDate.split('/');
+        dueDate = new Date(parseInt(year), parseInt(month), parseInt(day));
+      } else if (extractedData.startDate && extractedData.startDate.includes('-')) {
+        dueDate = new Date(extractedData.startDate);
+      }
+    } catch (e) {
+      dueDate = new Date();
+    }
+    
+    // Adiciona 30 dias se a data parseada for inválida ou muito antiga
+    if (isNaN(dueDate.getTime())) {
+      dueDate = new Date();
+    }
+    dueDate.setDate(dueDate.getDate() + 30);
 
     const newContract = {
       clientName: extractedData.clientName,
@@ -145,7 +153,7 @@ export default function ContractsPage() {
       startDate: extractedData.startDate,
       paymentTerms: extractedData.paymentTerms,
       status: "Ativo",
-      score: 95,
+      score: 100,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString()
     }
@@ -154,27 +162,27 @@ export default function ContractsPage() {
       const contractRef = await addDocumentNonBlocking(collection(db, "contracts"), newContract);
       
       if (contractRef) {
-        // AUTOMAÇÃO CRÍTICA: Criar fatura vinculada
+        // AUTOMAÇÃO CRÍTICA: Criar fatura vinculada com NOME DO CLIENTE explícito
         const firstInvoice = {
           contractId: contractRef.id,
-          clientName: newContract.clientName,
+          clientName: newContract.clientName, // CRUCIAL para o filtro do Faturamento
           amount: newContract.monthlyValue,
           issueDate: now.toISOString(),
           dueDate: dueDate.toISOString(),
           paymentStatus: "Pendente",
           paymentMethod: "Manual",
-          createdAt: now.toISOString(),
+          createdAt: now.toISOString(), // CRUCIAL para a ordenação do Faturamento
           updatedAt: now.toISOString()
         };
 
-        addDocumentNonBlocking(collection(db, "invoices"), firstInvoice);
+        await addDocumentNonBlocking(collection(db, "invoices"), firstInvoice);
 
         setIsSaving(false)
         setIsCreateOpen(false)
         setExtractedData(null)
         toast({
-          title: "Contrato e Fatura Ativados",
-          description: `Contrato salvo para ${newContract.clientName}. Fatura de R$ ${newContract.monthlyValue} gerada no faturamento.`,
+          title: "Contrato Ativado",
+          description: `Débito de R$ ${newContract.monthlyValue} gerado para ${newContract.clientName}.`,
         })
       }
     } catch (err) {
@@ -322,7 +330,7 @@ export default function ContractsPage() {
           </div>
         ) : contracts && contracts.length > 0 ? (
           contracts.map((contract) => (
-            <Card key={contract.id} className="card-hover bg-card/50 border-border overflow-hidden group" onClick={() => openDetails(contract)}>
+            <Card key={contract.id} className="card-hover bg-card/50 border-border overflow-hidden group cursor-pointer" onClick={() => openDetails(contract)}>
               <CardHeader className="pb-2 relative">
                 <Button 
                   variant="ghost" 
@@ -340,7 +348,7 @@ export default function ContractsPage() {
                       contract.status === "Ativo" ? "border-emerald-500/30 text-emerald-500 bg-emerald-500/5" : "border-destructive/30 text-destructive bg-destructive/5"
                     )}
                   >
-                    {contract.status.toUpperCase()}
+                    {contract.status?.toUpperCase() || "ATIVO"}
                   </Badge>
                   <span className="text-[10px] font-bold text-muted-foreground opacity-50">#{contract.id.slice(-4)}</span>
                 </div>
@@ -353,14 +361,14 @@ export default function ContractsPage() {
                     <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">MENSALIDADE</span>
                     <div className="flex items-center gap-1.5">
                       <CreditCard className="h-3.5 w-3.5 text-accent" />
-                      <span className="text-sm font-black">R$ {Number(contract.monthlyValue).toLocaleString('pt-BR')}</span>
+                      <span className="text-sm font-black">R$ {Number(contract.monthlyValue || 0).toLocaleString('pt-BR')}</span>
                     </div>
                   </div>
                   <div className="flex flex-col gap-0.5 text-right">
                     <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">INÍCIO</span>
                     <div className="flex items-center gap-1.5 justify-end">
                       <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-sm font-medium">{contract.startDate}</span>
+                      <span className="text-sm font-medium">{contract.startDate || "N/A"}</span>
                     </div>
                   </div>
                 </div>
@@ -369,7 +377,7 @@ export default function ContractsPage() {
                   <div className="flex items-center justify-between text-[10px] font-black tracking-widest">
                     <span className="text-muted-foreground">SCORE DE SAÚDE</span>
                     <span className={cn(contract.score > 80 ? "text-emerald-500" : "text-destructive")}>
-                      {contract.score}%
+                      {contract.score || 0}%
                     </span>
                   </div>
                   <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
@@ -378,7 +386,7 @@ export default function ContractsPage() {
                         "h-full transition-all duration-1000",
                         contract.score > 80 ? "bg-emerald-500" : "bg-destructive"
                       )} 
-                      style={{ width: `${contract.score}%` }} 
+                      style={{ width: `${contract.score || 0}%` }} 
                     />
                   </div>
                 </div>
@@ -427,7 +435,7 @@ export default function ContractsPage() {
                         selectedContract.status === "Ativo" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-destructive/10 text-destructive border-destructive/20"
                       )}
                     >
-                      {selectedContract.status.toUpperCase()}
+                      {selectedContract.status?.toUpperCase() || "ATIVO"}
                     </Badge>
                   )}
                 </div>
@@ -490,14 +498,14 @@ export default function ContractsPage() {
                           <CreditCard className="h-4 w-4" />
                           <span className="text-[10px] font-bold uppercase tracking-widest">Valor Mensal</span>
                         </div>
-                        <p className="text-xl font-black">R$ {Number(selectedContract.monthlyValue).toLocaleString('pt-BR')}</p>
+                        <p className="text-xl font-black">R$ {Number(selectedContract.monthlyValue || 0).toLocaleString('pt-BR')}</p>
                       </div>
                       <div className="space-y-2 p-4 rounded-xl bg-muted/20 border border-border/50">
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CalendarDays className="h-4 w-4" />
                           <span className="text-[10px] font-bold uppercase tracking-widest">Início</span>
                         </div>
-                        <p className="text-xl font-black">{selectedContract.startDate}</p>
+                        <p className="text-xl font-black">{selectedContract.startDate || "N/A"}</p>
                       </div>
                     </div>
 
@@ -521,13 +529,13 @@ export default function ContractsPage() {
                        <div className="grid grid-cols-2 gap-4 text-xs">
                           <div className="flex flex-col gap-1">
                             <span className="text-muted-foreground font-medium">Registrado em:</span>
-                            <span className="font-bold">{new Date(selectedContract.createdAt).toLocaleDateString('pt-BR')}</span>
+                            <span className="font-bold">{selectedContract.createdAt ? new Date(selectedContract.createdAt).toLocaleDateString('pt-BR') : "N/A"}</span>
                           </div>
                           <div className="flex flex-col gap-1">
                             <span className="text-muted-foreground font-medium">Saúde do Contrato:</span>
                             <div className="flex items-center gap-2">
                               <span className={cn("font-bold", selectedContract.score > 80 ? "text-emerald-500" : "text-destructive")}>
-                                {selectedContract.score}%
+                                {selectedContract.score || 0}%
                               </span>
                             </div>
                           </div>

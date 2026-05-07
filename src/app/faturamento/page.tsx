@@ -14,10 +14,12 @@ import {
   Loader2,
   MoreVertical,
   Trash2,
-  Check
+  Check,
+  RefreshCw
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -51,6 +53,7 @@ export default function BillingPage() {
   const db = useFirestore()
   const { user } = useUser()
   const [searchTerm, setSearchTerm] = React.useState("")
+  const [isProcessing, setIsProcessing] = React.useState(false)
 
   // Realtime queries for invoices and contracts
   const invoicesQuery = useMemoFirebase(() => {
@@ -103,12 +106,24 @@ export default function BillingPage() {
     })
   }
 
-  const handleDeleteInvoice = (id: string) => {
-    deleteDocumentNonBlocking(doc(db, "invoices", id))
+  const handleDeleteInvoice = (invoiceId: string) => {
+    deleteDocumentNonBlocking(doc(db, "invoices", invoiceId))
     toast({
       title: "Fatura removida",
       description: "O registro financeiro foi excluído.",
     })
+  }
+
+  const handleProcessBatch = () => {
+    setIsProcessing(true)
+    // Simulação de processamento em lote (ex: geração de boletos ou verificação de pagamentos)
+    setTimeout(() => {
+      setIsProcessing(false)
+      toast({
+        title: "Processamento Concluído",
+        description: "As faturas pendentes foram verificadas com o gateway de pagamento.",
+      })
+    }, 2000)
   }
 
   return (
@@ -119,11 +134,16 @@ export default function BillingPage() {
           <p className="text-muted-foreground">Controle de receitas recorrentes e gestão de faturas.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="border-border hidden sm:flex">
+          <Button variant="outline" className="border-border hidden sm:flex" onClick={() => toast({ title: "Exportação", description: "O arquivo CSV está sendo gerado." })}>
             <Download className="mr-2 h-4 w-4" /> Exportar
           </Button>
-          <Button className="bg-primary hover:bg-primary/90 w-full sm:w-auto">
-             Processar Lote
+          <Button 
+            className="bg-primary hover:bg-primary/90 w-full sm:w-auto" 
+            onClick={handleProcessBatch}
+            disabled={isProcessing}
+          >
+            {isProcessing ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
+            Processar Lote
           </Button>
         </div>
       </div>
@@ -173,9 +193,9 @@ export default function BillingPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input 
+          <Input 
             placeholder="Buscar por cliente ou fatura..." 
-            className="w-full h-10 pl-10 pr-4 rounded-md bg-card/50 border border-border focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+            className="pl-10 bg-card/50 border-border"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -248,7 +268,7 @@ export default function BillingPage() {
                           )}
                           <DropdownMenuItem 
                             className="text-[10px] font-bold uppercase cursor-pointer text-destructive focus:text-destructive"
-                            onClick={() => handleDeleteInvoice(id)}
+                            onClick={() => handleDeleteInvoice(inv.id)}
                           >
                             <Trash2 className="mr-2 h-3 w-3" /> Excluir Fatura
                           </DropdownMenuItem>

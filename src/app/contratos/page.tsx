@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -11,7 +12,6 @@ import {
   Loader2,
   CheckCircle2,
   FileText,
-  AlertCircle,
   Trash2
 } from "lucide-react"
 import { extractContractDetails, AIContractDetailExtractorOutput } from "@/ai/flows/ai-contract-detail-extractor"
@@ -51,7 +51,6 @@ export default function ContractsPage() {
   const [extractedData, setExtractedData] = React.useState<AIContractDetailExtractorOutput | null>(null)
   const [open, setOpen] = React.useState(false)
 
-  // Busca contratos reais do Firestore
   const contractsQuery = useMemoFirebase(() => {
     if (!user) return null
     return query(collection(db, "contracts"), orderBy("createdAt", "desc"))
@@ -61,6 +60,8 @@ export default function ContractsPage() {
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
+    console.log("Arquivo selecionado:", file?.name, file?.type, file?.size)
+    
     if (!file) return
 
     if (file.type !== "application/pdf") {
@@ -72,20 +73,11 @@ export default function ContractsPage() {
       return
     }
 
-    // Limite de tamanho sugerido (2MB para evitar estouro de payload em Server Actions)
-    if (file.size > 2 * 1024 * 1024) {
-      toast({
-        variant: "destructive",
-        title: "Arquivo muito grande",
-        description: "O limite para análise via IA é de 2MB.",
-      })
-      return
-    }
-
     setIsUploading(true)
     const reader = new FileReader()
 
-    reader.onerror = () => {
+    reader.onerror = (e) => {
+      console.error("Erro FileReader:", e)
       setIsUploading(false)
       toast({
         variant: "destructive",
@@ -97,9 +89,10 @@ export default function ContractsPage() {
     reader.onload = async () => {
       try {
         const dataUri = reader.result as string
-        console.log("Iniciando extração via IA...")
+        console.log("Iniciando extração via IA (Server Action)...")
         
         const result = await extractContractDetails({ pdfDataUri: dataUri })
+        console.log("Resultado da IA:", result)
         
         if (result) {
           setExtractedData(result)
@@ -117,7 +110,6 @@ export default function ContractsPage() {
         })
       } finally {
         setIsUploading(false)
-        // Limpa o input para permitir selecionar o mesmo arquivo novamente se necessário
         event.target.value = ""
       }
     }
@@ -136,7 +128,7 @@ export default function ContractsPage() {
       startDate: extractedData.startDate,
       paymentTerms: extractedData.paymentTerms,
       status: "Ativo",
-      score: Math.floor(Math.random() * 20) + 80, // Score inicial aleatório saudável
+      score: Math.floor(Math.random() * 20) + 80,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
@@ -152,6 +144,7 @@ export default function ContractsPage() {
         })
       })
       .catch((err) => {
+        console.error("Erro ao salvar contrato:", err)
         setIsSaving(false)
         toast({
           variant: "destructive",
@@ -195,19 +188,19 @@ export default function ContractsPage() {
             <div className="grid gap-6 py-4">
               {!extractedData ? (
                 <div className={cn(
-                  "border-2 border-dashed border-border rounded-xl p-10 flex flex-col items-center justify-center gap-4 transition-colors relative",
+                  "border-2 border-dashed border-border rounded-xl p-10 flex flex-col items-center justify-center gap-4 transition-colors relative overflow-hidden",
                   isUploading ? "bg-primary/5 border-primary/50 cursor-wait" : "bg-muted/20 hover:bg-muted/30 cursor-pointer"
                 )}>
                   <div className={cn("p-4 rounded-full bg-primary/10", isUploading && "animate-pulse")}>
                     {isUploading ? <Loader2 className="h-8 w-8 text-primary animate-spin" /> : <FileUp className="h-8 w-8 text-primary" />}
                   </div>
-                  <div className="text-center">
+                  <div className="text-center pointer-events-none">
                     <p className="text-sm font-semibold">{isUploading ? "IA Analisando Documento..." : "Clique para selecionar o PDF"}</p>
-                    <p className="text-xs text-muted-foreground">O processamento pode levar até 10 segundos.</p>
+                    <p className="text-xs text-muted-foreground">O processamento pode levar alguns segundos.</p>
                   </div>
                   <Input 
                     type="file" 
-                    className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-wait" 
+                    className="absolute inset-0 opacity-0 cursor-pointer z-50 h-full w-full disabled:cursor-not-allowed" 
                     onChange={handleFileUpload} 
                     disabled={isUploading}
                     accept="application/pdf"
@@ -221,26 +214,26 @@ export default function ContractsPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label>Cliente</Label>
-                      <Input value={extractedData.clientName} readOnly className="bg-muted/50" />
+                      <Input defaultValue={extractedData.clientName} onChange={(e) => setExtractedData({...extractedData, clientName: e.target.value})} className="bg-muted/30" />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Tipo de Serviço</Label>
-                      <Input value={extractedData.serviceType} readOnly className="bg-muted/50" />
+                      <Input defaultValue={extractedData.serviceType} onChange={(e) => setExtractedData({...extractedData, serviceType: e.target.value})} className="bg-muted/30" />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Valor Mensal</Label>
                       <div className="relative">
                         <span className="absolute left-3 top-2.5 text-xs text-muted-foreground">R$</span>
-                        <Input value={extractedData.monthlyValue} readOnly className="pl-8 bg-muted/50" />
+                        <Input type="number" defaultValue={extractedData.monthlyValue} onChange={(e) => setExtractedData({...extractedData, monthlyValue: Number(e.target.value)})} className="pl-8 bg-muted/30" />
                       </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label>Início do Contrato</Label>
-                      <Input value={extractedData.startDate} readOnly className="bg-muted/50" />
+                      <Input defaultValue={extractedData.startDate} onChange={(e) => setExtractedData({...extractedData, startDate: e.target.value})} className="bg-muted/30" />
                     </div>
                     <div className="space-y-1.5 col-span-2">
                       <Label>Termos de Pagamento</Label>
-                      <Input value={extractedData.paymentTerms} readOnly className="bg-muted/50" />
+                      <Input defaultValue={extractedData.paymentTerms} onChange={(e) => setExtractedData({...extractedData, paymentTerms: e.target.value})} className="bg-muted/30" />
                     </div>
                   </div>
                 </div>

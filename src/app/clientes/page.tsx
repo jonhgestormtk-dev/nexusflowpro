@@ -72,11 +72,17 @@ export default function ClientsPage() {
   const [isEditMode, setIsEditMode] = React.useState(false)
   const [isProfileOpen, setIsProfileOpen] = React.useState(false)
 
-  // Fail-safe para garantir que o scroll e interações sejam liberados se o modal bugar
+  // SOLUÇÃO DEFINITIVA: Forçar a liberação de interações no body/html após fechar modais
   React.useEffect(() => {
     if (!isDialogOpen && !isProfileOpen) {
-      document.body.style.pointerEvents = 'auto';
-      document.body.style.overflow = 'auto';
+      // Pequeno timeout para garantir que o Radix UI terminou suas operações de limpeza
+      const timer = setTimeout(() => {
+        document.body.style.pointerEvents = 'auto';
+        document.body.style.overflow = 'auto';
+        document.documentElement.style.pointerEvents = 'auto';
+        document.documentElement.style.overflow = 'auto';
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [isDialogOpen, isProfileOpen]);
 
@@ -133,33 +139,33 @@ export default function ClientsPage() {
       updatedAt: new Date().toISOString(),
     }
 
-    // FECHAMOS O MODAL PRIMEIRO (Síncrono para liberar a UI)
+    // FECHAMOS O MODAL PRIMEIRO para liberar a UI de imediato
     setIsDialogOpen(false)
 
-    // PROCESSAMOS OS DADOS
-    if (isEditMode && selectedClient) {
-      updateDocumentNonBlocking(doc(db, "clients", selectedClient.id), clientData)
-      toast({
-        title: "Cliente atualizado",
-        description: `${clientData.fullName} foi atualizado com sucesso.`,
-      })
-    } else {
-      const newClient = {
-        ...clientData,
-        createdAt: new Date().toISOString(),
-      }
-      addDocumentNonBlocking(collection(db, "clients"), newClient)
-      toast({
-        title: "Cliente cadastrado",
-        description: `${clientData.fullName} foi adicionado com sucesso.`,
-      })
-    }
-
-    // Limpeza de estados com atraso para não interromper animações
+    // PROCESSAMOS OS DADOS FORA DO CICLO DE SUBMIT PARA EVITAR TRAVAMENTOS
     setTimeout(() => {
+      if (isEditMode && selectedClient) {
+        updateDocumentNonBlocking(doc(db, "clients", selectedClient.id), clientData)
+        toast({
+          title: "Cliente atualizado",
+          description: `${clientData.fullName} foi atualizado com sucesso.`,
+        })
+      } else {
+        const newClient = {
+          ...clientData,
+          createdAt: new Date().toISOString(),
+        }
+        addDocumentNonBlocking(collection(db, "clients"), newClient)
+        toast({
+          title: "Cliente cadastrado",
+          description: `${clientData.fullName} foi adicionado com sucesso.`,
+        })
+      }
+      
+      // Limpeza de estados somente após a transição
       setSelectedClient(null)
       setIsEditMode(false)
-    }, 300)
+    }, 50);
   }
 
   const handleDeleteClient = (id: string, name: string) => {

@@ -1,17 +1,16 @@
-
 "use client"
 
 import * as React from "react"
 import { ShieldCheck, Mail, Lock, Loader2, UserPlus, LogIn } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useAuth, useFirestore } from "@/firebase"
+import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase"
 import { initiateEmailSignIn, initiateEmailSignUp } from "@/firebase/non-blocking-login"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { doc, setDoc, serverTimestamp } from "firebase/firestore"
+import { doc, serverTimestamp } from "firebase/firestore"
 
 export default function LoginPage() {
   const [email, setEmail] = React.useState("")
@@ -30,7 +29,6 @@ export default function LoginPage() {
     setIsLoading(true)
     
     if (isSignUp) {
-      // Fluxo de Cadastro
       initiateEmailSignUp(auth, email, password, async (error: any) => {
         setIsLoading(false)
         if (error) {
@@ -42,31 +40,33 @@ export default function LoginPage() {
           return
         }
 
-        // Criar documento do usuário no Firestore após sucesso no Auth
-        // Nota: O Firebase Auth aciona o observador no layout.tsx, mas vamos garantir o perfil aqui
         if (auth.currentUser) {
-          const userRef = doc(db, "users", auth.currentUser.uid)
-          setDoc(userRef, {
-            id: auth.currentUser.uid,
+          const userId = auth.currentUser.uid;
+          
+          // Criar documento do usuário no Firestore
+          setDocumentNonBlocking(doc(db, "users", userId), {
+            id: userId,
             email: email,
             fullName: fullName,
-            role: "Admin", // Padrão para o primeiro acesso no protótipo
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          }, { merge: true })
+            role: "Admin",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }, { merge: true });
 
-          // Também adicionar permissão de Admin na coleção DBAC
-          const adminRoleRef = doc(db, "roles_admin", auth.currentUser.uid)
-          setDoc(adminRoleRef, { active: true })
+          // Adicionar permissão de Admin na coleção DBAC
+          setDocumentNonBlocking(doc(db, "roles_admin", userId), { 
+            active: true,
+            email: email,
+            createdAt: new Date().toISOString()
+          }, { merge: true });
+
+          toast({
+            title: "Conta criada!",
+            description: "Bem-vindo ao NexusFlow Pro. Suas permissões de Admin foram configuradas.",
+          });
         }
-
-        toast({
-          title: "Conta criada!",
-          description: "Bem-vindo ao NexusFlow Pro.",
-        })
       })
     } else {
-      // Fluxo de Login
       initiateEmailSignIn(auth, email, password, (error: any) => {
         setIsLoading(false)
         if (error) {

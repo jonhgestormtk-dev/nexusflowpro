@@ -5,16 +5,9 @@ service cloud.firestore {
     /**
      * NexusFlow Pro Security Rules
      * 
-     * Core Philosophy:
-     * This ruleset enforces a strict role-based and ownership-based security model. 
-     * It leverages Database Access Control (DBAC) using dedicated role collections 
-     * to efficiently verify permissions without complex document queries.
-     * 
-     * Data Structure:
-     * - Global entities (clients, contracts, invoices) are top-level and restricted by role.
-     * - Role assignments (admin, finance, commercial) are stored in dedicated collections 
-     *   for "Existence-over-Content" validation.
-     * - Private user data (notifications) is nested under /users/{userId} for path-based security.
+     * Modelo ajustado para prototipagem rápida:
+     * - Leitura (get/list) permitida para qualquer usuário logado em entidades globais.
+     * - Escrita (create/update/delete) restrita por papéis (Admin, Financeiro, Comercial).
      */
 
     // --- Helper Functions ---
@@ -60,7 +53,6 @@ service cloud.firestore {
       }
     }
 
-    // Permite que o usuário crie seu próprio papel inicial (necessário para o fluxo de cadastro do protótipo)
     match /roles_admin/{userId} {
       allow read: if isSignedIn();
       allow create: if isOwner(userId);
@@ -78,66 +70,64 @@ service cloud.firestore {
     }
 
     match /companySettings/{settingsId} {
-      allow get: if isInternalStaff();
-      allow list: if isAdmin();
+      allow get, list: if isSignedIn();
       allow create, update, delete: if isAdmin();
     }
 
     match /services/{serviceId} {
-      allow get, list: if isInternalStaff();
+      allow get, list: if isSignedIn();
       allow write: if isAdmin();
     }
 
     match /clients/{clientId} {
-      allow get, list: if isInternalStaff();
+      allow get, list: if isSignedIn();
       allow create, update: if isInternalStaff();
       allow delete: if isAdmin();
     }
 
     match /contracts/{contractId} {
-      allow get, list: if isInternalStaff();
-      allow create: if isInternalStaff() && request.resource.data.clientId != null;
-      allow update: if isInternalStaff() && resource != null && request.resource.data.clientId == resource.data.clientId;
-      allow delete: if isAdmin() && resource != null;
+      allow get, list: if isSignedIn();
+      allow create: if isInternalStaff();
+      allow update: if isInternalStaff();
+      allow delete: if isAdmin();
     }
 
     match /invoices/{invoiceId} {
-      allow get, list: if isInternalStaff();
+      allow get, list: if isSignedIn();
       allow create, update: if isAdmin() || isFinanceiro();
-      allow delete: if isAdmin() && resource != null;
+      allow delete: if isAdmin();
     }
 
     match /payments/{paymentId} {
-      allow get, list: if isInternalStaff();
+      allow get, list: if isSignedIn();
       allow create: if isAdmin() || isFinanceiro();
-      allow update, delete: if isAdmin() && resource != null;
+      allow update, delete: if isAdmin();
     }
 
     match /uploads/{uploadId} {
-      allow get, list: if isInternalStaff();
-      allow create: if isInternalStaff() && request.resource.data.uploadedByUserId == request.auth.uid;
-      allow update: if (isAdmin() || (resource != null && resource.data.uploadedByUserId == request.auth.uid)) && request.resource.data.uploadedByUserId == resource.data.uploadedByUserId;
-      allow delete: if isAdmin() || (resource != null && resource.data.uploadedByUserId == request.auth.uid);
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.uploadedByUserId == request.auth.uid;
+      allow update, delete: if isAdmin() || (resource != null && resource.data.uploadedByUserId == request.auth.uid);
     }
 
     match /activityLogs/{activityId} {
-      allow get, list: if isInternalStaff();
-      allow create: if isInternalStaff();
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn();
       allow update, delete: if false;
     }
 
     match /crmLeads/{leadId} {
-      allow get, list: if isInternalStaff();
+      allow get, list: if isSignedIn();
       allow create: if isAdmin() || isComercial();
-      allow update: if (isAdmin() || (resource != null && resource.data.assignedToUserId == request.auth.uid)) && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow update: if isAdmin() || (resource != null && resource.data.assignedToUserId == request.auth.uid);
+      allow delete: if isAdmin();
     }
 
     match /scheduleEntries/{scheduleEntryId} {
-      allow get, list: if isAdmin() || (isSignedIn() && (request.auth.uid in resource.data.assignedToUserIds));
-      allow create: if isInternalStaff();
-      allow update: if (isAdmin() || (resource != null && request.auth.uid in resource.data.assignedToUserIds)) && resource != null;
-      allow delete: if isAdmin() && resource != null;
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isAdmin() || (resource != null && request.auth.uid in resource.data.assignedToUserIds);
+      allow delete: if isAdmin();
     }
   }
 }

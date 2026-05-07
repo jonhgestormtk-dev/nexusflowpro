@@ -28,47 +28,45 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase"
-import { collection } from "firebase/firestore"
+import { collection, query, where } from "firebase/firestore"
 
-const revenueData = [
-  { month: "Jan", value: 32000 },
-  { month: "Fev", value: 35000 },
-  { month: "Mar", value: 33000 },
-  { month: "Abr", value: 38000 },
-  { month: "Mai", value: 42000 },
-  { month: "Jun", value: 45230 },
-]
-
-const serviceData = [
-  { name: "Sites", value: 45, color: "#6033CC" },
-  { name: "Apps", value: 25, color: "#2AA1F0" },
-  { name: "Sistemas", value: 20, color: "#10b981" },
-  { name: "Consultoria", value: 10, color: "#f59e0b" },
-]
+const COLORS = ["#6033CC", "#2AA1F0", "#10b981", "#f59e0b", "#ef4444", "#ec4899"];
 
 export default function DashboardPage() {
   const db = useFirestore()
   const { user } = useUser()
   
-  // Realtime queries for stats - Espera o usuário estar logado
+  // Realtime queries - Somente se usuário logado
   const clientsQuery = useMemoFirebase(() => user ? collection(db, "clients") : null, [db, user])
   const contractsQuery = useMemoFirebase(() => user ? collection(db, "contracts") : null, [db, user])
+  const pendingInvoicesQuery = useMemoFirebase(() => 
+    user ? query(collection(db, "invoices"), where("paymentStatus", "==", "Pendente")) : null, 
+  [db, user])
   
   const { data: clients, isLoading: loadingClients } = useCollection(clientsQuery)
   const { data: contracts, isLoading: loadingContracts } = useCollection(contractsQuery)
+  const { data: pendingInvoices, isLoading: loadingInvoices } = useCollection(pendingInvoicesQuery)
+
+  // Cálculos de Estatísticas
+  const mrr = React.useMemo(() => {
+    if (!contracts) return 0
+    return contracts
+      .filter(c => c.status === "Ativo")
+      .reduce((acc, curr) => acc + (Number(curr.monthlyValue) || 0), 0)
+  }, [contracts])
 
   const stats = [
     {
       title: "Contratos Ativos",
-      value: loadingContracts ? "..." : (contracts?.length || 0).toString(),
-      change: "+12%",
+      value: loadingContracts ? "..." : (contracts?.filter(c => c.status === "Ativo").length || 0).toString(),
+      change: "+2.4%",
       trend: "up",
       icon: FileCheck,
       color: "text-primary"
     },
     {
-      title: "Faturamento Estimado",
-      value: loadingContracts ? "..." : `R$ ${contracts?.reduce((acc, curr) => acc + (Number(curr.monthlyValue) || 0), 0).toLocaleString()}`,
+      title: "Receita Recorrente (MRR)",
+      value: loadingContracts ? "..." : `R$ ${mrr.toLocaleString('pt-BR')}`,
       change: "+5.4%",
       trend: "up",
       icon: DollarSign,
@@ -83,13 +81,40 @@ export default function DashboardPage() {
       color: "text-emerald-500"
     },
     {
-      title: "Aguardando",
-      value: "0",
-      change: "0%",
+      title: "Faturas Pendentes",
+      value: loadingInvoices ? "..." : (pendingInvoices?.length || 0).toString(),
+      change: "Critico",
       trend: "down",
       icon: AlertCircle,
       color: "text-destructive"
     }
+  ]
+
+  // Cálculo de Distribuição de Serviços (Dinâmico)
+  const serviceDistribution = React.useMemo(() => {
+    if (!contracts || contracts.length === 0) return []
+    
+    const counts: Record<string, number> = {}
+    contracts.forEach(c => {
+      const type = c.serviceType || "Outros"
+      counts[type] = (counts[type] || 0) + 1
+    })
+
+    return Object.entries(counts).map(([name, count], index) => ({
+      name,
+      value: Math.round((count / contracts.length) * 100),
+      color: COLORS[index % COLORS.length]
+    }))
+  }, [contracts])
+
+  // Mock para crescimento (Em um app real, buscaríamos histórico de pagamentos)
+  const revenueData = [
+    { month: "Jan", value: mrr * 0.85 },
+    { month: "Fev", value: mrr * 0.90 },
+    { month: "Mar", value: mrr * 0.92 },
+    { month: "Abr", value: mrr * 0.95 },
+    { month: "Mai", value: mrr * 0.98 },
+    { month: "Jun", value: mrr },
   ]
 
   return (
@@ -145,7 +170,7 @@ export default function DashboardPage() {
                   axisLine={false} 
                   tickLine={false} 
                   tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
-                  tickFormatter={(value) => `R$ ${value / 1000}k`}
+                  tickFormatter={(value) => `R$ ${Math.round(value / 1000)}k`}
                   width={40}
                 />
                 <Tooltip 
@@ -177,7 +202,7 @@ export default function DashboardPage() {
              <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={serviceData}
+                  data={serviceDistribution.length > 0 ? serviceDistribution : [{ name: "Nenhum", value: 100, color: "#333" }]}
                   cx="50%"
                   cy="50%"
                   innerRadius={60}
@@ -185,7 +210,7 @@ export default function DashboardPage() {
                   paddingAngle={5}
                   dataKey="value"
                 >
-                  {serviceData.map((entry, index) => (
+                  {(serviceDistribution.length > 0 ? serviceDistribution : [{color: "#333"}]).map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                   ))}
                 </Pie>
@@ -198,13 +223,16 @@ export default function DashboardPage() {
             </div>
           </CardContent>
           <div className="p-4 md:p-6 pt-0 grid grid-cols-2 gap-2 md:gap-4">
-            {serviceData.map((service) => (
+            {serviceDistribution.map((service) => (
               <div key={service.name} className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: service.color }} />
                 <span className="text-[10px] md:text-xs font-medium truncate">{service.name}</span>
                 <span className="text-[10px] md:text-xs text-muted-foreground ml-auto">{service.value}%</span>
               </div>
             ))}
+            {serviceDistribution.length === 0 && (
+              <p className="col-span-2 text-[10px] text-center text-muted-foreground italic">Nenhum dado de serviço disponível.</p>
+            )}
           </div>
         </Card>
       </div>

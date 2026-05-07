@@ -72,6 +72,14 @@ export default function ClientsPage() {
   const [isEditMode, setIsEditMode] = React.useState(false)
   const [isProfileOpen, setIsProfileOpen] = React.useState(false)
 
+  // Fail-safe para garantir que o scroll e interações sejam liberados se o modal bugar
+  React.useEffect(() => {
+    if (!isDialogOpen && !isProfileOpen) {
+      document.body.style.pointerEvents = 'auto';
+      document.body.style.overflow = 'auto';
+    }
+  }, [isDialogOpen, isProfileOpen]);
+
   const clientsQuery = useMemoFirebase(() => {
     if (!user) return null
     return query(collection(db, "clients"), orderBy("createdAt", "desc"))
@@ -108,7 +116,6 @@ export default function ClientsPage() {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     
-    // Pegamos os dados antes de fechar o modal
     const form = e.currentTarget
     const formData = new FormData(form)
     
@@ -126,10 +133,10 @@ export default function ClientsPage() {
       updatedAt: new Date().toISOString(),
     }
 
-    // FECHAMOS O MODAL IMEDIATAMENTE
-    // Isso libera o scroll lock do Radix UI e evita o travamento da tela
+    // FECHAMOS O MODAL PRIMEIRO (Síncrono para liberar a UI)
     setIsDialogOpen(false)
 
+    // PROCESSAMOS OS DADOS
     if (isEditMode && selectedClient) {
       updateDocumentNonBlocking(doc(db, "clients", selectedClient.id), clientData)
       toast({
@@ -147,6 +154,12 @@ export default function ClientsPage() {
         description: `${clientData.fullName} foi adicionado com sucesso.`,
       })
     }
+
+    // Limpeza de estados com atraso para não interromper animações
+    setTimeout(() => {
+      setSelectedClient(null)
+      setIsEditMode(false)
+    }, 300)
   }
 
   const handleDeleteClient = (id: string, name: string) => {
@@ -286,11 +299,10 @@ export default function ClientsPage() {
         onOpenChange={(open) => {
           setIsDialogOpen(open)
           if (!open) {
-            // Limpamos o cliente selecionado apenas depois que o modal sumir totalmente da tela
             setTimeout(() => {
               setSelectedClient(null)
               setIsEditMode(false)
-            }, 150)
+            }, 300)
           }
         }}
       >
@@ -367,7 +379,7 @@ export default function ClientsPage() {
           if (!open) {
             setTimeout(() => {
               setSelectedClient(null)
-            }, 150)
+            }, 300)
           }
         }}
       >

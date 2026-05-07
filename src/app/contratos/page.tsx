@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -12,7 +11,8 @@ import {
   Loader2,
   CheckCircle2,
   FileText,
-  AlertCircle
+  AlertCircle,
+  Trash2
 } from "lucide-react"
 import { extractContractDetails, AIContractDetailExtractorOutput } from "@/ai/flows/ai-contract-detail-extractor"
 
@@ -36,9 +36,10 @@ import {
   useFirestore, 
   useMemoFirebase, 
   useUser,
-  addDocumentNonBlocking 
+  addDocumentNonBlocking,
+  deleteDocumentNonBlocking
 } from "@/firebase"
-import { collection, query, orderBy } from "firebase/firestore"
+import { collection, query, orderBy, doc } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 
 export default function ContractsPage() {
@@ -50,11 +51,12 @@ export default function ContractsPage() {
   const [extractedData, setExtractedData] = React.useState<AIContractDetailExtractorOutput | null>(null)
   const [open, setOpen] = React.useState(false)
 
-  // Fetch real contracts - Espera o usuário estar logado
+  // Busca contratos reais do Firestore
   const contractsQuery = useMemoFirebase(() => {
     if (!user) return null
     return query(collection(db, "contracts"), orderBy("createdAt", "desc"))
   }, [db, user])
+  
   const { data: contracts, isLoading } = useCollection(contractsQuery)
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -70,6 +72,16 @@ export default function ContractsPage() {
       return
     }
 
+    // Limite de tamanho sugerido (2MB para evitar estouro de payload em Server Actions)
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        variant: "destructive",
+        title: "Arquivo muito grande",
+        description: "O limite para análise via IA é de 2MB.",
+      })
+      return
+    }
+
     setIsUploading(true)
     const reader = new FileReader()
 
@@ -78,31 +90,35 @@ export default function ContractsPage() {
       toast({
         variant: "destructive",
         title: "Erro na leitura",
-        description: "Não foi possível ler o arquivo PDF.",
+        description: "Não foi possível ler o arquivo localmente.",
       })
     }
 
     reader.onload = async () => {
       try {
         const dataUri = reader.result as string
+        console.log("Iniciando extração via IA...")
+        
         const result = await extractContractDetails({ pdfDataUri: dataUri })
         
         if (result) {
           setExtractedData(result)
           toast({
             title: "Análise Concluída",
-            description: "Os dados do contrato foram extraídos com sucesso via IA.",
+            description: "Dados extraídos com sucesso pela IA.",
           })
         }
-      } catch (error) {
-        console.error("Error processing contract:", error)
+      } catch (error: any) {
+        console.error("Erro no processamento do contrato:", error)
         toast({
           variant: "destructive",
-          title: "Erro na IA",
-          description: "Nossa IA não conseguiu analisar os detalhes deste contrato. Verifique o arquivo.",
+          title: "Erro na Análise",
+          description: error.message || "A IA não conseguiu processar este PDF.",
         })
       } finally {
         setIsUploading(false)
+        // Limpa o input para permitir selecionar o mesmo arquivo novamente se necessário
+        event.target.value = ""
       }
     }
     
@@ -120,7 +136,7 @@ export default function ContractsPage() {
       startDate: extractedData.startDate,
       paymentTerms: extractedData.paymentTerms,
       status: "Ativo",
-      score: 100,
+      score: Math.floor(Math.random() * 20) + 80, // Score inicial aleatório saudável
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
@@ -132,18 +148,25 @@ export default function ContractsPage() {
         setExtractedData(null)
         toast({
           title: "Contrato Registrado",
-          description: `O contrato para ${newContract.clientName} foi salvo com sucesso.`,
+          description: `O contrato para ${newContract.clientName} foi salvo.`,
         })
       })
       .catch((err) => {
-        console.error("Error saving contract:", err)
         setIsSaving(false)
         toast({
           variant: "destructive",
           title: "Erro ao salvar",
-          description: "Ocorreu um problema ao registrar o contrato no banco de dados.",
+          description: "Não foi possível registrar o contrato no banco de dados.",
         })
       })
+  }
+
+  const handleDeleteContract = (id: string) => {
+    deleteDocumentNonBlocking(doc(db, "contracts", id))
+    toast({
+      title: "Contrato removido",
+      description: "O registro foi excluído com sucesso.",
+    })
   }
 
   return (
@@ -151,7 +174,7 @@ export default function ContractsPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Gestão de Contratos</h1>
-          <p className="text-muted-foreground">Ciclo de vida, renovações e automação de documentos inteligente.</p>
+          <p className="text-muted-foreground">Ciclo de vida e automação inteligente de documentos.</p>
         </div>
         <Dialog open={open} onOpenChange={(v) => {
           if (!v) setExtractedData(null);
@@ -166,25 +189,25 @@ export default function ContractsPage() {
             <DialogHeader>
               <DialogTitle>Novo Contrato Inteligente</DialogTitle>
               <DialogDescription>
-                Nossa IA analisará seu PDF para extrair valores, datas e nomes automaticamente.
+                Selecione um PDF para que nossa IA extraia os dados automaticamente.
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-6 py-4">
               {!extractedData ? (
                 <div className={cn(
                   "border-2 border-dashed border-border rounded-xl p-10 flex flex-col items-center justify-center gap-4 transition-colors relative",
-                  isUploading ? "bg-primary/5 border-primary/50" : "bg-muted/20 hover:bg-muted/30"
+                  isUploading ? "bg-primary/5 border-primary/50 cursor-wait" : "bg-muted/20 hover:bg-muted/30 cursor-pointer"
                 )}>
                   <div className={cn("p-4 rounded-full bg-primary/10", isUploading && "animate-pulse")}>
                     {isUploading ? <Loader2 className="h-8 w-8 text-primary animate-spin" /> : <FileUp className="h-8 w-8 text-primary" />}
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-semibold">{isUploading ? "IA Analisando Documento..." : "Clique ou arraste o PDF para selecionar"}</p>
-                    <p className="text-xs text-muted-foreground">O processamento leva alguns segundos.</p>
+                    <p className="text-sm font-semibold">{isUploading ? "IA Analisando Documento..." : "Clique para selecionar o PDF"}</p>
+                    <p className="text-xs text-muted-foreground">O processamento pode levar até 10 segundos.</p>
                   </div>
                   <Input 
                     type="file" 
-                    className="absolute inset-0 opacity-0 cursor-pointer" 
+                    className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-wait" 
                     onChange={handleFileUpload} 
                     disabled={isUploading}
                     accept="application/pdf"
@@ -198,39 +221,41 @@ export default function ContractsPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <Label>Cliente</Label>
-                      <Input value={extractedData.clientName} readOnly className="bg-muted/50 focus-visible:ring-0" />
+                      <Input value={extractedData.clientName} readOnly className="bg-muted/50" />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Tipo de Serviço</Label>
-                      <Input value={extractedData.serviceType} readOnly className="bg-muted/50 focus-visible:ring-0" />
+                      <Input value={extractedData.serviceType} readOnly className="bg-muted/50" />
                     </div>
                     <div className="space-y-1.5">
                       <Label>Valor Mensal</Label>
                       <div className="relative">
                         <span className="absolute left-3 top-2.5 text-xs text-muted-foreground">R$</span>
-                        <Input value={extractedData.monthlyValue} readOnly className="pl-8 bg-muted/50 focus-visible:ring-0" />
+                        <Input value={extractedData.monthlyValue} readOnly className="pl-8 bg-muted/50" />
                       </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label>Início do Contrato</Label>
-                      <Input value={extractedData.startDate} readOnly className="bg-muted/50 focus-visible:ring-0" />
+                      <Input value={extractedData.startDate} readOnly className="bg-muted/50" />
                     </div>
                     <div className="space-y-1.5 col-span-2">
                       <Label>Termos de Pagamento</Label>
-                      <Input value={extractedData.paymentTerms} readOnly className="bg-muted/50 focus-visible:ring-0" />
+                      <Input value={extractedData.paymentTerms} readOnly className="bg-muted/50" />
                     </div>
                   </div>
                 </div>
               )}
             </div>
             <DialogFooter className="gap-2 sm:gap-0">
-              <Button variant="outline" onClick={() => {setExtractedData(null); setOpen(false)}} disabled={isSaving || isUploading}>
+              <Button variant="outline" onClick={() => setOpen(false)} disabled={isSaving || isUploading}>
                 Cancelar
               </Button>
-              <Button disabled={!extractedData || isSaving || isUploading} onClick={handleSaveContract} className="bg-primary">
-                {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                Confirmar e Registrar
-              </Button>
+              {extractedData && (
+                <Button disabled={isSaving} onClick={handleSaveContract} className="bg-primary">
+                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                  Confirmar e Salvar
+                </Button>
+              )}
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -240,12 +265,20 @@ export default function ContractsPage() {
         {isLoading ? (
           <div className="col-span-full py-20 text-center">
             <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary mb-4" />
-            <p className="text-muted-foreground font-medium">Carregando seus contratos...</p>
+            <p className="text-muted-foreground font-medium">Carregando contratos...</p>
           </div>
         ) : contracts && contracts.length > 0 ? (
           contracts.map((contract) => (
             <Card key={contract.id} className="card-hover bg-card/50 border-border overflow-hidden group">
-              <CardHeader className="pb-2">
+              <CardHeader className="pb-2 relative">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="absolute right-2 top-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
+                  onClick={() => handleDeleteContract(contract.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
                 <div className="flex items-center justify-between mb-2">
                   <Badge 
                     variant="outline" 
@@ -256,7 +289,7 @@ export default function ContractsPage() {
                   >
                     {contract.status.toUpperCase()}
                   </Badge>
-                  <span className="text-[10px] font-bold text-muted-foreground opacity-50"># {contract.id.slice(-6)}</span>
+                  <span className="text-[10px] font-bold text-muted-foreground opacity-50"># {contract.id.slice(-4)}</span>
                 </div>
                 <CardTitle className="text-xl group-hover:text-primary transition-colors truncate">{contract.clientName}</CardTitle>
                 <CardDescription className="truncate font-medium">{contract.serviceType}</CardDescription>
@@ -274,14 +307,14 @@ export default function ContractsPage() {
                     <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">INÍCIO</span>
                     <div className="flex items-center gap-1.5 justify-end">
                       <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-sm font-medium">{new Date(contract.startDate).toLocaleDateString('pt-BR')}</span>
+                      <span className="text-sm font-medium">{contract.startDate}</span>
                     </div>
                   </div>
                 </div>
                 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-[10px] font-black tracking-widest">
-                    <span className="text-muted-foreground">SCORE DE SAÚDE DO CONTRATO</span>
+                    <span className="text-muted-foreground">SCORE DE SAÚDE</span>
                     <span className={cn(contract.score > 80 ? "text-emerald-500" : "text-destructive")}>
                       {contract.score}%
                     </span>
@@ -297,7 +330,7 @@ export default function ContractsPage() {
                   </div>
                 </div>
 
-                <Button variant="outline" className="w-full h-9 text-xs font-bold border-border hover:bg-primary hover:text-primary-foreground transition-all duration-300">
+                <Button variant="outline" className="w-full h-9 text-xs font-bold border-border">
                   Ver Detalhes <ArrowRight className="ml-2 h-3 w-3" />
                 </Button>
               </CardContent>
@@ -309,7 +342,7 @@ export default function ContractsPage() {
                 <FileText className="h-8 w-8 text-muted-foreground opacity-30" />
              </div>
              <h3 className="text-lg font-bold mb-1">Nenhum contrato cadastrado</h3>
-             <p className="text-sm text-muted-foreground max-w-xs mx-auto mb-6">Comece agora fazendo o upload de um PDF e deixe nossa IA fazer o trabalho pesado.</p>
+             <p className="text-sm text-muted-foreground max-w-xs mx-auto mb-6">Inicie agora fazendo o upload de um PDF.</p>
              <Button variant="outline" className="border-border text-xs font-bold" onClick={() => setOpen(true)}>
                <Plus className="mr-2 h-4 w-4" /> Criar Primeiro Contrato
              </Button>

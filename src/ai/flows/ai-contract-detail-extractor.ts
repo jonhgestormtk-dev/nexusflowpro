@@ -14,39 +14,45 @@ const AIContractDetailExtractorInputSchema = z.object({
   pdfDataUri: z
     .string()
     .describe(
-      "A PDF contract, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+      "A PDF contract, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:application/pdf;base64,<encoded_data>'."
     ),
 });
 export type AIContractDetailExtractorInput = z.infer<typeof AIContractDetailExtractorInputSchema>;
 
 const AIContractDetailExtractorOutputSchema = z.object({
-  clientName: z.string().describe('The name of the client as found in the contract.'),
-  serviceType: z.string().describe('The type of service mentioned in the contract (e.g., "Website Development", "Custom Application", "Management System").'),
-  monthlyValue: z.number().describe('The monthly recurring value or cost specified in the contract. Provide as a number without currency symbols.'),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('The start date of the contract in YYYY-MM-DD format.'),
-  paymentTerms: z.string().describe('The payment terms and frequency specified in the contract (e.g., "Net 30", "monthly upfront", "quarterly in arrears").'),
+  clientName: z.string().describe('The name of the client or company as found in the contract.'),
+  serviceType: z.string().describe('The type of service mentioned (e.g., "Desenvolvimento Web", "Consultoria").'),
+  monthlyValue: z.number().describe('The recurring monthly value as a number. No currency symbols.'),
+  startDate: z.string().describe('The start date of the contract. Use YYYY-MM-DD format if possible, or the date as text.'),
+  paymentTerms: z.string().describe('Briefly describe the payment terms found.'),
 });
 export type AIContractDetailExtractorOutput = z.infer<typeof AIContractDetailExtractorOutputSchema>;
 
 export async function extractContractDetails(input: AIContractDetailExtractorInput): Promise<AIContractDetailExtractorOutput> {
-  return aiContractDetailExtractorFlow(input);
+  try {
+    return await aiContractDetailExtractorFlow(input);
+  } catch (error) {
+    console.error("AI Flow Execution Error:", error);
+    throw new Error("Falha ao processar o contrato com IA.");
+  }
 }
 
 const aiContractDetailExtractorPrompt = ai.definePrompt({
   name: 'aiContractDetailExtractorPrompt',
   input: { schema: AIContractDetailExtractorInputSchema },
   output: { schema: AIContractDetailExtractorOutputSchema },
-  prompt: `You are an expert contract analyst. Your task is to extract key details from the provided PDF contract.
-Carefully read the document and identify the following information:
-- Client Name: The full name of the client or company.
-- Service Type: The primary service being provided.
-- Monthly Value: The recurring monthly payment amount. Extract this as a number without any currency symbols.
-- Start Date: The effective start date of the contract. Ensure it is in YYYY-MM-DD format.
-- Payment Terms: The agreed-upon payment schedule and conditions.
-
-Extract the information in the specified JSON format.
-
-Contract PDF: {{media url=pdfDataUri}}`,
+  prompt: `Você é um analista de contratos especialista. Sua tarefa é ler o PDF fornecido e extrair informações cruciais.
+  
+  Extraia os seguintes campos:
+  - Nome do Cliente
+  - Tipo de Serviço
+  - Valor Mensal (apenas o número)
+  - Data de Início
+  - Termos de Pagamento
+  
+  Se não encontrar algum campo, forneça uma estimativa lógica ou marque como "Não identificado no documento".
+  
+  Documento PDF: {{media url=pdfDataUri}}`,
 });
 
 const aiContractDetailExtractorFlow = ai.defineFlow(
@@ -57,6 +63,9 @@ const aiContractDetailExtractorFlow = ai.defineFlow(
   },
   async (input) => {
     const { output } = await aiContractDetailExtractorPrompt(input);
-    return output!;
+    if (!output) {
+      throw new Error("A IA não retornou resultados válidos para este documento.");
+    }
+    return output;
   }
 );

@@ -7,7 +7,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useUser } from '@/firebase';
 import { cn } from "@/lib/utils"
 import { ShieldCheck, Menu } from "lucide-react"
@@ -16,8 +16,15 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser()
   const pathname = usePathname()
   const router = useRouter()
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!mounted) return
+    
     // Se o carregamento terminou e não há usuário, e não estamos na página de login, redireciona
     if (!isUserLoading && !user && pathname !== '/login') {
       router.push('/login')
@@ -26,15 +33,17 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     if (!isUserLoading && user && pathname === '/login') {
       router.push('/dashboard')
     }
-  }, [user, isUserLoading, pathname, router])
+  }, [user, isUserLoading, pathname, router, mounted])
 
-  // Enquanto estiver carregando o estado de Auth, mostra um spinner premium
-  if (isUserLoading) {
+  // Enquanto estiver hidratando ou carregando o estado de Auth, mostra o loading consistente
+  if (!mounted || isUserLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
         <div className="flex flex-col items-center gap-4">
           <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-muted-foreground font-bold tracking-widest text-xs animate-pulse uppercase">Autenticando NexusFlow Pro</p>
+          <p className="text-muted-foreground font-bold tracking-widest text-xs animate-pulse uppercase">
+            Autenticando NexusFlow Pro
+          </p>
         </div>
       </div>
     )

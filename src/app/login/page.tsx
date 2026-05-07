@@ -1,58 +1,91 @@
+
 "use client"
 
 import * as React from "react"
-import { ShieldCheck, Mail, Lock, Loader2 } from "lucide-react"
+import { ShieldCheck, Mail, Lock, Loader2, UserPlus, LogIn } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useAuth } from "@/firebase"
-import { initiateEmailSignIn } from "@/firebase/non-blocking-login"
+import { useAuth, useFirestore } from "@/firebase"
+import { initiateEmailSignIn, initiateEmailSignUp } from "@/firebase/non-blocking-login"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
+import { doc, setDoc, serverTimestamp } from "firebase/firestore"
 
 export default function LoginPage() {
   const [email, setEmail] = React.useState("")
   const [password, setPassword] = React.useState("")
+  const [fullName, setFullName] = React.useState("")
   const [isLoading, setIsLoading] = React.useState(false)
+  const [isSignUp, setIsSignUp] = React.useState(false)
+  
   const auth = useAuth()
+  const db = useFirestore()
   const router = useRouter()
   const { toast } = useToast()
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     
-    // Passamos um callback de erro para a função non-blocking
-    initiateEmailSignIn(auth, email, password, (error: any) => {
-      setIsLoading(false)
-      
-      let errorMessage = "Verifique seus dados e tente novamente."
-      if (error.code === 'auth/invalid-credential') {
-        errorMessage = "E-mail ou senha incorretos."
-      } else if (error.code === 'auth/user-not-found') {
-        errorMessage = "Usuário não encontrado."
-      } else if (error.code === 'auth/wrong-password') {
-        errorMessage = "Senha incorreta."
-      }
+    if (isSignUp) {
+      // Fluxo de Cadastro
+      initiateEmailSignUp(auth, email, password, async (error: any) => {
+        setIsLoading(false)
+        if (error) {
+          toast({
+            variant: "destructive",
+            title: "Erro no cadastro",
+            description: error.message || "Não foi possível criar sua conta.",
+          })
+          return
+        }
 
-      toast({
-        variant: "destructive",
-        title: "Erro no login",
-        description: errorMessage,
+        // Criar documento do usuário no Firestore após sucesso no Auth
+        // Nota: O Firebase Auth aciona o observador no layout.tsx, mas vamos garantir o perfil aqui
+        if (auth.currentUser) {
+          const userRef = doc(db, "users", auth.currentUser.uid)
+          setDoc(userRef, {
+            id: auth.currentUser.uid,
+            email: email,
+            fullName: fullName,
+            role: "Admin", // Padrão para o primeiro acesso no protótipo
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          }, { merge: true })
+
+          // Também adicionar permissão de Admin na coleção DBAC
+          const adminRoleRef = doc(db, "roles_admin", auth.currentUser.uid)
+          setDoc(adminRoleRef, { active: true })
+        }
+
+        toast({
+          title: "Conta criada!",
+          description: "Bem-vindo ao NexusFlow Pro.",
+        })
       })
-    })
-
-    // Feedback imediato de que o processo começou
-    toast({
-      title: "Verificando acesso",
-      description: "Assegurando sua conexão com o NexusFlow...",
-    })
+    } else {
+      // Fluxo de Login
+      initiateEmailSignIn(auth, email, password, (error: any) => {
+        setIsLoading(false)
+        if (error) {
+          let errorMessage = "Verifique seus dados e tente novamente."
+          if (error.code === 'auth/invalid-credential') {
+            errorMessage = "E-mail ou senha incorretos."
+          }
+          toast({
+            variant: "destructive",
+            title: "Erro no login",
+            description: errorMessage,
+          })
+        }
+      })
+    }
   }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
-      {/* Decorative background elements */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent/20 rounded-full blur-[120px] pointer-events-none" />
 
@@ -62,14 +95,32 @@ export default function LoginPage() {
             <ShieldCheck className="h-7 w-7" />
           </div>
           <div className="space-y-1">
-            <CardTitle className="text-2xl font-black tracking-tight">NexusFlow Pro</CardTitle>
+            <CardTitle className="text-2xl font-black tracking-tight">
+              {isSignUp ? "Criar Conta" : "NexusFlow Pro"}
+            </CardTitle>
             <CardDescription className="text-muted-foreground font-medium">
-              Entre para gerenciar sua operação digital
+              {isSignUp ? "Registre-se para começar" : "Entre para gerenciar sua operação"}
             </CardDescription>
           </div>
         </CardHeader>
-        <form onSubmit={handleLogin}>
+        <form onSubmit={handleAuth}>
           <CardContent className="space-y-4">
+            {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="name">Nome Completo</Label>
+                <div className="relative">
+                  <LogIn className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input 
+                    id="name" 
+                    placeholder="Seu nome" 
+                    className="pl-10 bg-muted/30 border-border"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="email">E-mail Corporativo</Label>
               <div className="relative">
@@ -88,7 +139,9 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Senha</Label>
-                <Button variant="link" type="button" className="px-0 font-bold text-xs text-accent">Esqueceu a senha?</Button>
+                {!isSignUp && (
+                  <Button variant="link" type="button" className="px-0 font-bold text-xs text-accent">Esqueceu a senha?</Button>
+                )}
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -109,11 +162,20 @@ export default function LoginPage() {
               className="w-full bg-primary hover:bg-primary/90 font-bold h-11 text-lg shadow-lg shadow-primary/20" 
               disabled={isLoading}
             >
-              {isLoading ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : "Acessar Plataforma"}
+              {isLoading ? (
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              ) : (
+                isSignUp ? "Finalizar Cadastro" : "Acessar Plataforma"
+              )}
             </Button>
-            <p className="text-xs text-center text-muted-foreground font-medium">
-              Ao entrar, você concorda com nossos <span className="text-accent cursor-pointer hover:underline">Termos de Serviço</span>.
-            </p>
+            <Button 
+              variant="ghost" 
+              type="button"
+              className="w-full text-xs font-bold"
+              onClick={() => setIsSignUp(!isSignUp)}
+            >
+              {isSignUp ? "Já tenho uma conta. Entrar" : "Não tem conta? Criar agora"}
+            </Button>
           </CardFooter>
         </form>
       </Card>

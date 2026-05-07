@@ -15,7 +15,8 @@ import {
   Mail,
   Phone,
   FileText,
-  MapPin
+  MapPin,
+  X
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -64,12 +65,13 @@ export default function ClientsPage() {
   const { user } = useUser()
   const [searchTerm, setSearchTerm] = React.useState("")
   
-  // Estados para Controle de Modais
+  // Estados de Controle
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
+  const [isProfileOpen, setIsProfileOpen] = React.useState(false)
   const [selectedClient, setSelectedClient] = React.useState<any>(null)
   const [isEditMode, setIsEditMode] = React.useState(false)
-  const [isProfileOpen, setIsProfileOpen] = React.useState(false)
 
+  // Query de Clientes
   const clientsQuery = useMemoFirebase(() => {
     if (!user) return null
     return query(collection(db, "clients"), orderBy("createdAt", "desc"))
@@ -86,6 +88,7 @@ export default function ClientsPage() {
     )
   }, [clients, searchTerm])
 
+  // Handlers de Abertura
   const handleOpenCreate = () => {
     setSelectedClient(null)
     setIsEditMode(false)
@@ -103,6 +106,28 @@ export default function ClientsPage() {
     setIsProfileOpen(true)
   }
 
+  // Handler de Fechamento Seguro
+  const handleDialogChange = (open: boolean) => {
+    setIsDialogOpen(open)
+    if (!open) {
+      // Limpa os dados apenas após a animação de saída terminar
+      setTimeout(() => {
+        if (!isDialogOpen) {
+          setSelectedClient(null)
+          setIsEditMode(false)
+        }
+      }, 300)
+    }
+  }
+
+  const handleProfileChange = (open: boolean) => {
+    setIsProfileOpen(open)
+    if (!open) {
+      setTimeout(() => setSelectedClient(null), 300)
+    }
+  }
+
+  // Submissão do Formulário
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     
@@ -123,34 +148,23 @@ export default function ClientsPage() {
       updatedAt: new Date().toISOString(),
     }
 
-    // Fechamos o modal primeiro para evitar que o re-render do Firestore trave a UI
-    setIsDialogOpen(false)
-
+    // 1. Processa a alteração no Firestore
     if (isEditMode && selectedClient) {
       updateDocumentNonBlocking(doc(db, "clients", selectedClient.id), clientData)
-      toast({
-        title: "Cliente atualizado",
-        description: `${clientData.fullName} foi atualizado com sucesso.`,
-      })
+      toast({ title: "Cliente atualizado", description: `${clientData.fullName} foi atualizado.` })
     } else {
-      const newClient = {
-        ...clientData,
-        createdAt: new Date().toISOString(),
-      }
+      const newClient = { ...clientData, createdAt: new Date().toISOString() }
       addDocumentNonBlocking(collection(db, "clients"), newClient)
-      toast({
-        title: "Cliente cadastrado",
-        description: `${clientData.fullName} foi adicionado com sucesso.`,
-      })
+      toast({ title: "Cliente cadastrado", description: `${clientData.fullName} foi adicionado.` })
     }
+
+    // 2. Fecha o modal (o Radix cuidará da limpeza de pointer-events)
+    setIsDialogOpen(false)
   }
 
   const handleDeleteClient = (id: string, name: string) => {
     deleteDocumentNonBlocking(doc(db, "clients", id))
-    toast({
-      title: "Cliente removido",
-      description: `${name} foi excluído do sistema.`,
-    })
+    toast({ title: "Cliente removido", description: `${name} foi excluído.` })
   }
 
   return (
@@ -160,7 +174,6 @@ export default function ClientsPage() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Gestão de Clientes</h1>
           <p className="text-muted-foreground">Gerencie sua base de clientes e acompanhe o relacionamento.</p>
         </div>
-        
         <Button onClick={handleOpenCreate} className="bg-primary hover:bg-primary/90">
           <Plus className="mr-2 h-4 w-4" /> Novo Cliente
         </Button>
@@ -277,7 +290,7 @@ export default function ClientsPage() {
       </Card>
 
       {/* Diálogo de Cadastro/Edição */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={handleDialogChange} modal={true}>
         <DialogContent className="sm:max-w-[600px] bg-card border-border">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
@@ -344,7 +357,7 @@ export default function ClientsPage() {
       </Dialog>
 
       {/* Modal de Perfil do Cliente */}
-      <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
+      <Dialog open={isProfileOpen} onOpenChange={handleProfileChange} modal={true}>
         <DialogContent className="sm:max-w-[700px] bg-card border-border max-h-[90vh] overflow-y-auto">
           {selectedClient && (
             <>

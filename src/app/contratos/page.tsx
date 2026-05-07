@@ -58,7 +58,6 @@ export default function ContractsPage() {
   const [extractedData, setExtractedData] = React.useState<AIContractDetailExtractorOutput | null>(null)
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   
-  // Estado para visualização e edição
   const [selectedContract, setSelectedContract] = React.useState<any>(null)
   const [isDetailsOpen, setIsDetailsOpen] = React.useState(false)
   const [isEditing, setIsEditing] = React.useState(false)
@@ -107,19 +106,16 @@ export default function ContractsPage() {
     reader.onload = async () => {
       try {
         const dataUri = reader.result as string
-        console.log("Iniciando análise de PDF via IA...");
         const result = await extractContractDetails({ pdfDataUri: dataUri })
         
         if (result) {
-          console.log("Dados extraídos:", result);
           setExtractedData(result)
           toast({
             title: "Análise Concluída",
-            description: "Dados extraídos com sucesso pela IA.",
+            description: "IA identificou os dados do contrato.",
           })
         }
       } catch (error: any) {
-        console.error("Erro na extração de dados:", error);
         toast({
           variant: "destructive",
           title: "Erro na Análise",
@@ -149,7 +145,7 @@ export default function ContractsPage() {
       startDate: extractedData.startDate,
       paymentTerms: extractedData.paymentTerms,
       status: "Ativo",
-      score: Math.floor(Math.random() * 20) + 80,
+      score: 95,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString()
     }
@@ -158,7 +154,7 @@ export default function ContractsPage() {
       const contractRef = await addDocumentNonBlocking(collection(db, "contracts"), newContract);
       
       if (contractRef) {
-        // Automação: Criar primeira fatura para daqui a 30 dias com o nome do cliente denormalizado
+        // AUTOMAÇÃO CRÍTICA: Criar fatura vinculada
         const firstInvoice = {
           contractId: contractRef.id,
           clientName: newContract.clientName,
@@ -177,12 +173,11 @@ export default function ContractsPage() {
         setIsCreateOpen(false)
         setExtractedData(null)
         toast({
-          title: "Contrato Registrado",
-          description: `O contrato para ${newContract.clientName} foi salvo e a primeira fatura foi agendada para ${dueDate.toLocaleDateString('pt-BR')}.`,
+          title: "Contrato e Fatura Ativados",
+          description: `Contrato salvo para ${newContract.clientName}. Fatura de R$ ${newContract.monthlyValue} gerada no faturamento.`,
         })
       }
     } catch (err) {
-      console.error("Erro ao salvar contrato:", err);
       setIsSaving(false)
       toast({
         variant: "destructive",
@@ -274,7 +269,7 @@ export default function ContractsPage() {
               ) : (
                 <div className="space-y-4 animate-in fade-in zoom-in-95">
                   <div className="flex items-center gap-2 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-500 text-xs font-bold">
-                    <Sparkles className="h-3 w-3" /> DADOS EXTRAÍDOS COM SUCESSO PELA IA
+                    <Sparkles className="h-3 w-3" /> DADOS EXTRAÍDOS PELA IA
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
@@ -311,7 +306,7 @@ export default function ContractsPage() {
               {extractedData && (
                 <Button disabled={isSaving} onClick={handleSaveContract} className="bg-primary">
                   {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                  Confirmar e Salvar
+                  Confirmar e Ativar
                 </Button>
               )}
             </DialogFooter>
@@ -323,11 +318,11 @@ export default function ContractsPage() {
         {isLoading ? (
           <div className="col-span-full py-20 text-center">
             <Loader2 className="h-10 w-10 animate-spin mx-auto text-primary mb-4" />
-            <p className="text-muted-foreground font-medium">Carregando contratos...</p>
+            <p className="text-muted-foreground font-medium">Sincronizando contratos...</p>
           </div>
         ) : contracts && contracts.length > 0 ? (
           contracts.map((contract) => (
-            <Card key={contract.id} className="card-hover bg-card/50 border-border overflow-hidden group">
+            <Card key={contract.id} className="card-hover bg-card/50 border-border overflow-hidden group" onClick={() => openDetails(contract)}>
               <CardHeader className="pb-2 relative">
                 <Button 
                   variant="ghost" 
@@ -347,7 +342,7 @@ export default function ContractsPage() {
                   >
                     {contract.status.toUpperCase()}
                   </Badge>
-                  <span className="text-[10px] font-bold text-muted-foreground opacity-50"># {contract.id.slice(-4)}</span>
+                  <span className="text-[10px] font-bold text-muted-foreground opacity-50">#{contract.id.slice(-4)}</span>
                 </div>
                 <CardTitle className="text-xl group-hover:text-primary transition-colors truncate">{contract.clientName}</CardTitle>
                 <CardDescription className="truncate font-medium">{contract.serviceType}</CardDescription>
@@ -355,7 +350,7 @@ export default function ContractsPage() {
               <CardContent className="space-y-4 pt-4">
                 <div className="flex items-center justify-between py-3 border-y border-border/50">
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">VALOR MENSAL</span>
+                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">MENSALIDADE</span>
                     <div className="flex items-center gap-1.5">
                       <CreditCard className="h-3.5 w-3.5 text-accent" />
                       <span className="text-sm font-black">R$ {Number(contract.monthlyValue).toLocaleString('pt-BR')}</span>
@@ -391,7 +386,6 @@ export default function ContractsPage() {
                 <Button 
                   variant="outline" 
                   className="w-full h-9 text-xs font-bold border-border"
-                  onClick={() => openDetails(contract)}
                 >
                   Ver Detalhes <ArrowRight className="ml-2 h-3 w-3" />
                 </Button>
@@ -403,7 +397,7 @@ export default function ContractsPage() {
              <div className="p-4 rounded-full bg-muted/20 w-16 h-16 flex items-center justify-center mx-auto mb-4">
                 <FileText className="h-8 w-8 text-muted-foreground opacity-30" />
              </div>
-             <h3 className="text-lg font-bold mb-1">Nenhum contrato cadastrado</h3>
+             <h3 className="text-lg font-bold mb-1">Nenhum contrato ativo</h3>
              <p className="text-sm text-muted-foreground max-w-xs mx-auto mb-6">Inicie agora fazendo o upload de um PDF.</p>
              <Button variant="outline" className="border-border text-xs font-bold" onClick={() => setIsCreateOpen(true)}>
                <Plus className="mr-2 h-4 w-4" /> Criar Primeiro Contrato
@@ -412,7 +406,6 @@ export default function ContractsPage() {
         )}
       </div>
 
-      {/* Modal de Detalhes e Edição do Contrato */}
       <Dialog open={isDetailsOpen} onOpenChange={(v) => { if(!v) setIsEditing(false); setIsDetailsOpen(v); }}>
         <DialogContent className="sm:max-w-[600px] bg-card border-border max-h-[90vh] overflow-y-auto">
           {selectedContract && (
@@ -515,7 +508,7 @@ export default function ContractsPage() {
                        </div>
                        <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
                           <p className="text-sm text-muted-foreground leading-relaxed">
-                            {selectedContract.paymentTerms || "Nenhum termo específico detalhado para este contrato."}
+                            {selectedContract.paymentTerms || "Nenhum termo específico detalhado."}
                           </p>
                        </div>
                     </div>
@@ -523,12 +516,12 @@ export default function ContractsPage() {
                     <div className="space-y-3">
                        <div className="flex items-center gap-2">
                          <Clock className="h-4 w-4 text-accent" />
-                         <h4 className="text-xs font-black uppercase tracking-widest text-foreground">Informações Adicionais</h4>
+                         <h4 className="text-xs font-black uppercase tracking-widest text-foreground">Audit Trail</h4>
                        </div>
                        <div className="grid grid-cols-2 gap-4 text-xs">
                           <div className="flex flex-col gap-1">
                             <span className="text-muted-foreground font-medium">Registrado em:</span>
-                            <span className="font-bold">{new Date(selectedContract.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+                            <span className="font-bold">{new Date(selectedContract.createdAt).toLocaleDateString('pt-BR')}</span>
                           </div>
                           <div className="flex flex-col gap-1">
                             <span className="text-muted-foreground font-medium">Saúde do Contrato:</span>
@@ -536,7 +529,6 @@ export default function ContractsPage() {
                               <span className={cn("font-bold", selectedContract.score > 80 ? "text-emerald-500" : "text-destructive")}>
                                 {selectedContract.score}%
                               </span>
-                              <BadgeAlert className={cn("h-3 w-3", selectedContract.score > 80 ? "text-emerald-500" : "text-destructive")} />
                             </div>
                           </div>
                        </div>

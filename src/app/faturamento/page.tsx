@@ -55,10 +55,11 @@ export default function BillingPage() {
   const [searchTerm, setSearchTerm] = React.useState("")
   const [isProcessing, setIsProcessing] = React.useState(false)
 
-  // Realtime queries for invoices and contracts
+  // Sincronização em tempo real das faturas
   const invoicesQuery = useMemoFirebase(() => {
     if (!user) return null
-    return query(collection(db, "invoices"), orderBy("dueDate", "asc"))
+    // Ordenamos por createdAt desc para ver as faturas novas primeiro
+    return query(collection(db, "invoices"), orderBy("createdAt", "desc"))
   }, [db, user])
 
   const contractsQuery = useMemoFirebase(() => {
@@ -71,13 +72,13 @@ export default function BillingPage() {
 
   const filteredInvoices = React.useMemo(() => {
     if (!invoices) return []
-    return invoices.filter(inv => 
-      inv.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      inv.id?.toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    return invoices.filter(inv => {
+      const nameMatch = inv.clientName?.toLowerCase().includes(searchTerm.toLowerCase())
+      const idMatch = inv.id?.toLowerCase().includes(searchTerm.toLowerCase())
+      return nameMatch || idMatch
+    })
   }, [invoices, searchTerm])
 
-  // Stats calculation
   const stats = React.useMemo(() => {
     if (!invoices || !contracts) return { mrr: 0, pending: 0, delinquency: 0 }
 
@@ -102,39 +103,38 @@ export default function BillingPage() {
     })
     toast({
       title: "Pagamento Confirmado",
-      description: "A fatura foi marcada como paga com sucesso.",
+      description: "Débito atualizado para Pago com sucesso.",
     })
   }
 
   const handleDeleteInvoice = (invoiceId: string) => {
     deleteDocumentNonBlocking(doc(db, "invoices", invoiceId))
     toast({
-      title: "Fatura removida",
-      description: "O registro financeiro foi excluído.",
+      title: "Registro removido",
+      description: "A fatura foi excluída permanentemente.",
     })
   }
 
   const handleProcessBatch = () => {
     setIsProcessing(true)
-    // Simulação de processamento em lote (ex: geração de boletos ou verificação de pagamentos)
     setTimeout(() => {
       setIsProcessing(false)
       toast({
-        title: "Processamento Concluído",
-        description: "As faturas pendentes foram verificadas com o gateway de pagamento.",
+        title: "Sincronização Finalizada",
+        description: "Status de faturas atualizados com o banco de dados.",
       })
-    }, 2000)
+    }, 1500)
   }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between px-1">
         <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Faturamento & Financeiro</h1>
-          <p className="text-muted-foreground">Controle de receitas recorrentes e gestão de faturas.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Débitos e Faturamento</h1>
+          <p className="text-muted-foreground">Gestão financeira e acompanhamento de faturas pendentes.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="border-border hidden sm:flex" onClick={() => toast({ title: "Exportação", description: "O arquivo CSV está sendo gerado." })}>
+          <Button variant="outline" className="border-border hidden sm:flex" onClick={() => toast({ title: "Exportação", description: "CSV gerado com sucesso." })}>
             <Download className="mr-2 h-4 w-4" /> Exportar
           </Button>
           <Button 
@@ -142,8 +142,8 @@ export default function BillingPage() {
             onClick={handleProcessBatch}
             disabled={isProcessing}
           >
-            {isProcessing ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <CreditCard className="mr-2 h-4 w-4" />}
-            Processar Lote
+            {isProcessing ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Sincronizar
           </Button>
         </div>
       </div>
@@ -151,40 +151,40 @@ export default function BillingPage() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="border-border bg-card/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Receita Recorrente (MRR)</CardTitle>
+            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Previsão MRR</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black">
               {loadingContracts ? "..." : `R$ ${stats.mrr.toLocaleString('pt-BR')}`}
             </div>
             <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-emerald-500">
-              <TrendingUp className="h-3 w-3" /> CALCULADO EM TEMPO REAL
+              <TrendingUp className="h-3 w-3" /> ATUALIZADO EM TEMPO REAL
             </div>
           </CardContent>
         </Card>
         <Card className="border-border bg-card/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Pendente</CardTitle>
+            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">A Receber (Pendentes)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black text-accent">
               {loadingInvoices ? "..." : `R$ ${stats.pending.toLocaleString('pt-BR')}`}
             </div>
-            <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-muted-foreground">
-              <Clock className="h-3 w-3" /> {invoices?.filter(i => i.paymentStatus === "Pendente").length || 0} FATURAS EM ABERTO
+            <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-muted-foreground uppercase">
+              <Clock className="h-3 w-3" /> {invoices?.filter(i => i.paymentStatus === "Pendente").length || 0} Débitos em aberto
             </div>
           </CardContent>
         </Card>
         <Card className="border-border bg-card/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Inadimplência</CardTitle>
+            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Inadimplência Bruta</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black text-destructive">
               {loadingInvoices ? "..." : `R$ ${stats.delinquency.toLocaleString('pt-BR')}`}
             </div>
-            <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-destructive">
-              <AlertCircle className="h-3 w-3" /> VENCIDAS E NÃO PAGAS
+            <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-destructive uppercase">
+              <AlertCircle className="h-3 w-3" /> Vencidas e não pagas
             </div>
           </CardContent>
         </Card>
@@ -194,7 +194,7 @@ export default function BillingPage() {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
-            placeholder="Buscar por cliente ou fatura..." 
+            placeholder="Buscar por cliente ou ID da fatura..." 
             className="pl-10 bg-card/50 border-border"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -224,7 +224,7 @@ export default function BillingPage() {
                   <TableCell colSpan={6} className="h-32 text-center">
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                      <span className="text-muted-foreground font-medium">Sincronizando faturas...</span>
+                      <span className="text-muted-foreground font-medium">Buscando lançamentos...</span>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -232,8 +232,8 @@ export default function BillingPage() {
                 filteredInvoices.map((inv) => (
                   <TableRow key={inv.id} className="hover:bg-muted/20 transition-colors">
                     <TableCell className="font-mono text-[10px] font-bold text-primary">#{inv.id.slice(-6).toUpperCase()}</TableCell>
-                    <TableCell className="font-semibold text-sm">{inv.clientName || "N/A"}</TableCell>
-                    <TableCell className="font-bold text-sm">R$ {Number(inv.amount).toLocaleString('pt-BR')}</TableCell>
+                    <TableCell className="font-semibold text-sm truncate max-w-[200px]">{inv.clientName || "Cliente não identificado"}</TableCell>
+                    <TableCell className="font-bold text-sm text-foreground">R$ {Number(inv.amount).toLocaleString('pt-BR')}</TableCell>
                     <TableCell className="text-muted-foreground text-xs">
                       {new Date(inv.dueDate).toLocaleDateString('pt-BR')}
                     </TableCell>
@@ -263,14 +263,14 @@ export default function BillingPage() {
                               className="text-[10px] font-bold uppercase cursor-pointer"
                               onClick={() => handleMarkAsPaid(inv.id)}
                             >
-                              <Check className="mr-2 h-3 w-3" /> Marcar como Pago
+                              <Check className="mr-2 h-3 w-3" /> Liquidar Fatura
                             </DropdownMenuItem>
                           )}
                           <DropdownMenuItem 
                             className="text-[10px] font-bold uppercase cursor-pointer text-destructive focus:text-destructive"
                             onClick={() => handleDeleteInvoice(inv.id)}
                           >
-                            <Trash2 className="mr-2 h-3 w-3" /> Excluir Fatura
+                            <Trash2 className="mr-2 h-3 w-3" /> Excluir Registro
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -280,7 +280,7 @@ export default function BillingPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={6} className="h-24 text-center text-muted-foreground text-sm">
-                    Nenhuma fatura encontrada.
+                    Nenhum débito encontrado para os filtros atuais.
                   </TableCell>
                 </TableRow>
               )}

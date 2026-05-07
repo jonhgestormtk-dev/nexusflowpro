@@ -45,7 +45,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { 
@@ -112,8 +111,8 @@ export default function ClientsPage() {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsSaving(true)
-    const formData = new FormData(e.currentTarget)
     
+    const formData = new FormData(e.currentTarget)
     const clientData = {
       fullName: formData.get("fullName") as string,
       companyName: formData.get("companyName") as string,
@@ -128,36 +127,38 @@ export default function ClientsPage() {
       updatedAt: new Date().toISOString(),
     }
 
-    if (isEditMode && selectedClient) {
-      updateDocumentNonBlocking(doc(db, "clients", selectedClient.id), clientData)
-      setIsSaving(false)
-      setIsDialogOpen(false)
-      toast({
-        title: "Cliente atualizado",
-        description: `${clientData.fullName} foi atualizado com sucesso.`,
-      })
-    } else {
-      const newClient = {
-        ...clientData,
-        createdAt: new Date().toISOString(),
+    try {
+      if (isEditMode && selectedClient) {
+        updateDocumentNonBlocking(doc(db, "clients", selectedClient.id), clientData)
+        toast({
+          title: "Cliente atualizado",
+          description: `${clientData.fullName} foi atualizado com sucesso.`,
+        })
+      } else {
+        const newClient = {
+          ...clientData,
+          createdAt: new Date().toISOString(),
+        }
+        addDocumentNonBlocking(collection(db, "clients"), newClient)
+        toast({
+          title: "Cliente cadastrado",
+          description: `${clientData.fullName} foi adicionado com sucesso.`,
+        })
       }
-      addDocumentNonBlocking(collection(db, "clients"), newClient)
-        .then(() => {
-          setIsSaving(false)
-          setIsDialogOpen(false)
-          toast({
-            title: "Cliente cadastrado",
-            description: `${clientData.fullName} foi adicionado com sucesso.`,
-          })
-        })
-        .catch(() => {
-          setIsSaving(false)
-          toast({
-            variant: "destructive",
-            title: "Erro ao cadastrar",
-            description: "Não foi possível salvar o cliente.",
-          })
-        })
+    } catch (error) {
+      console.error(error)
+      toast({
+        variant: "destructive",
+        title: "Erro na operação",
+        description: "Ocorreu um problema ao salvar os dados.",
+      })
+    } finally {
+      // Pequeno timeout para garantir que as animações do Dialog não travem
+      setTimeout(() => {
+        setIsSaving(false)
+        setIsDialogOpen(false)
+        setSelectedClient(null)
+      }, 100)
     }
   }
 
@@ -293,7 +294,12 @@ export default function ClientsPage() {
       </Card>
 
       {/* Diálogo de Cadastro/Edição */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsDialogOpen(false)
+          setSelectedClient(null)
+        }
+      }}>
         <DialogContent className="sm:max-w-[600px] bg-card border-border">
           <form key={selectedClient?.id || "new"} onSubmit={handleSubmit}>
             <DialogHeader>
@@ -339,7 +345,7 @@ export default function ClientsPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" type="button" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+              <Button variant="outline" type="button" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>Cancelar</Button>
               <Button type="submit" disabled={isSaving}>
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
                 {isEditMode ? "Salvar Alterações" : "Confirmar Cadastro"}
@@ -350,7 +356,12 @@ export default function ClientsPage() {
       </Dialog>
 
       {/* Modal de Perfil do Cliente */}
-      <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
+      <Dialog open={isProfileOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsProfileOpen(false)
+          setSelectedClient(null)
+        }
+      }}>
         <DialogContent className="sm:max-w-[700px] bg-card border-border max-h-[90vh] overflow-y-auto">
           {selectedClient && (
             <>
@@ -429,11 +440,11 @@ export default function ClientsPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-4 rounded-xl bg-primary/5 border border-primary/10">
                     <span className="text-[10px] font-black uppercase text-primary tracking-widest block mb-1">Membro desde</span>
-                    <p className="font-bold">{new Date(selectedClient.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                    <p className="font-bold">{selectedClient.createdAt ? new Date(selectedClient.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }) : 'N/A'}</p>
                   </div>
                   <div className="p-4 rounded-xl bg-accent/5 border border-accent/10">
                     <span className="text-[10px] font-black uppercase text-accent tracking-widest block mb-1">Última atualização</span>
-                    <p className="font-bold">{new Date(selectedClient.updatedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}</p>
+                    <p className="font-bold">{selectedClient.updatedAt ? new Date(selectedClient.updatedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' }) : 'N/A'}</p>
                   </div>
                 </div>
               </div>

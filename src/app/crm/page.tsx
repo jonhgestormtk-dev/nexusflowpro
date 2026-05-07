@@ -14,7 +14,8 @@ import {
   CheckCircle2,
   Trash2,
   Search,
-  Filter
+  Filter,
+  User
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -28,6 +29,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import {
   Dialog,
@@ -72,6 +74,20 @@ export default function CRMPage() {
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
   const [selectedLead, setSelectedLead] = React.useState<any>(null)
   const [isSaving, setIsSaving] = React.useState(false)
+
+  // FAIL-SAFE: Garante que a tela nunca fique travada após fechar modais
+  React.useEffect(() => {
+    if (!isDialogOpen) {
+      const restoreInteraction = () => {
+        document.body.style.pointerEvents = 'auto';
+        document.body.style.overflow = 'auto';
+        document.documentElement.style.pointerEvents = 'auto';
+      };
+      restoreInteraction();
+      const timer = setTimeout(restoreInteraction, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isDialogOpen]);
 
   // Query de Leads
   const leadsQuery = useMemoFirebase(() => {
@@ -170,7 +186,7 @@ export default function CRMPage() {
                   </div>
                 </div>
 
-                <div className="space-y-3">
+                <div className="space-y-3 min-h-[100px]">
                   {leads?.filter(l => l.pipelineStage === stage.id).map((lead) => (
                     <Card 
                       key={lead.id} 
@@ -190,9 +206,9 @@ export default function CRMPage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="bg-popover border-border">
-                              <DropdownMenuItem className="text-[10px] font-bold uppercase" onClick={(e) => { e.stopPropagation(); handleOpenEdit(lead); }}>Editar</DropdownMenuItem>
+                              <DropdownMenuItem className="text-[10px] font-bold uppercase cursor-pointer" onClick={(e) => { e.stopPropagation(); handleOpenEdit(lead); }}>Editar</DropdownMenuItem>
                               <DropdownMenuSeparator className="opacity-10" />
-                              <DropdownMenuItem className="text-[10px] font-bold uppercase text-destructive focus:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteLead(lead.id); }}>Excluir</DropdownMenuItem>
+                              <DropdownMenuItem className="text-[10px] font-bold uppercase cursor-pointer text-destructive focus:text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteLead(lead.id); }}>Excluir</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
@@ -244,7 +260,10 @@ export default function CRMPage() {
         )}
       </div>
 
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={(open) => {
+        setIsDialogOpen(open);
+        if (!open) setTimeout(() => setSelectedLead(null), 300);
+      }}>
         <DialogContent className="sm:max-w-[450px] bg-card border-border">
           <form onSubmit={handleSaveLead}>
             <DialogHeader>
@@ -285,8 +304,4 @@ export default function CRMPage() {
       </Dialog>
     </div>
   )
-}
-
-function DropdownMenuSeparator({ className }: { className?: string }) {
-  return <div className={cn("h-px bg-muted my-1", className)} />
 }

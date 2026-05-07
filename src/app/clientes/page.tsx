@@ -92,8 +92,8 @@ export default function ClientsPage() {
   }, [clients, searchTerm])
 
   const handleOpenCreate = () => {
-    setSelectedClient(null)
     setIsEditMode(false)
+    setSelectedClient(null)
     setIsDialogOpen(true)
   }
 
@@ -112,13 +112,15 @@ export default function ClientsPage() {
     e.preventDefault()
     setIsSaving(true)
     
-    const formData = new FormData(e.currentTarget)
+    const form = e.currentTarget
+    const formData = new FormData(form)
+    
     const clientData = {
       fullName: formData.get("fullName") as string,
       companyName: formData.get("companyName") as string,
       documentNumber: formData.get("documentNumber") as string,
       email: formData.get("email") as string,
-      whatsapp: formData.get("whatsapp") as string,
+      whatsapp: formData.get("whatsapp") as string || "",
       address: formData.get("address") as string || "N/A",
       city: formData.get("city") as string || "N/A",
       state: formData.get("state") as string || "N/A",
@@ -126,6 +128,9 @@ export default function ClientsPage() {
       status: selectedClient?.status || "Ativo",
       updatedAt: new Date().toISOString(),
     }
+
+    // Fechamos o modal imediatamente para evitar travamento visual
+    setIsDialogOpen(false)
 
     try {
       if (isEditMode && selectedClient) {
@@ -145,7 +150,6 @@ export default function ClientsPage() {
           description: `${clientData.fullName} foi adicionado com sucesso.`,
         })
       }
-      setIsDialogOpen(false)
     } catch (error) {
       console.error(error)
       toast({
@@ -154,6 +158,7 @@ export default function ClientsPage() {
         description: "Ocorreu um problema ao salvar os dados.",
       })
     } finally {
+      // Limpamos o estado de salvamento apenas após o modal fechar
       setIsSaving(false)
     }
   }
@@ -295,7 +300,7 @@ export default function ClientsPage() {
         onOpenChange={(open) => {
           setIsDialogOpen(open)
           if (!open) {
-            // Pequeno delay para resetar os dados apenas após a animação de fechamento
+            // Resetamos o estado após o fechamento do modal
             setTimeout(() => {
               setSelectedClient(null)
               setIsEditMode(false)

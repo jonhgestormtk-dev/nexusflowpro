@@ -66,13 +66,10 @@ export default function ClientsPage() {
   const { user } = useUser()
   const [searchTerm, setSearchTerm] = React.useState("")
   
-  // Estados para Criação/Edição
+  // Estados para Controle de Modais
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
-  const [isSaving, setIsSaving] = React.useState(false)
   const [selectedClient, setSelectedClient] = React.useState<any>(null)
   const [isEditMode, setIsEditMode] = React.useState(false)
-
-  // Estado para Visualização de Perfil
   const [isProfileOpen, setIsProfileOpen] = React.useState(false)
 
   const clientsQuery = useMemoFirebase(() => {
@@ -92,8 +89,8 @@ export default function ClientsPage() {
   }, [clients, searchTerm])
 
   const handleOpenCreate = () => {
-    setIsEditMode(false)
     setSelectedClient(null)
+    setIsEditMode(false)
     setIsDialogOpen(true)
   }
 
@@ -110,8 +107,8 @@ export default function ClientsPage() {
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    setIsSaving(true)
     
+    // Pegamos os dados antes de fechar o modal
     const form = e.currentTarget
     const formData = new FormData(form)
     
@@ -129,37 +126,26 @@ export default function ClientsPage() {
       updatedAt: new Date().toISOString(),
     }
 
-    // Fechamos o modal imediatamente para evitar travamento visual
+    // FECHAMOS O MODAL IMEDIATAMENTE
+    // Isso libera o scroll lock do Radix UI e evita o travamento da tela
     setIsDialogOpen(false)
 
-    try {
-      if (isEditMode && selectedClient) {
-        updateDocumentNonBlocking(doc(db, "clients", selectedClient.id), clientData)
-        toast({
-          title: "Cliente atualizado",
-          description: `${clientData.fullName} foi atualizado com sucesso.`,
-        })
-      } else {
-        const newClient = {
-          ...clientData,
-          createdAt: new Date().toISOString(),
-        }
-        addDocumentNonBlocking(collection(db, "clients"), newClient)
-        toast({
-          title: "Cliente cadastrado",
-          description: `${clientData.fullName} foi adicionado com sucesso.`,
-        })
-      }
-    } catch (error) {
-      console.error(error)
+    if (isEditMode && selectedClient) {
+      updateDocumentNonBlocking(doc(db, "clients", selectedClient.id), clientData)
       toast({
-        variant: "destructive",
-        title: "Erro na operação",
-        description: "Ocorreu um problema ao salvar os dados.",
+        title: "Cliente atualizado",
+        description: `${clientData.fullName} foi atualizado com sucesso.`,
       })
-    } finally {
-      // Limpamos o estado de salvamento apenas após o modal fechar
-      setIsSaving(false)
+    } else {
+      const newClient = {
+        ...clientData,
+        createdAt: new Date().toISOString(),
+      }
+      addDocumentNonBlocking(collection(db, "clients"), newClient)
+      toast({
+        title: "Cliente cadastrado",
+        description: `${clientData.fullName} foi adicionado com sucesso.`,
+      })
     }
   }
 
@@ -300,11 +286,11 @@ export default function ClientsPage() {
         onOpenChange={(open) => {
           setIsDialogOpen(open)
           if (!open) {
-            // Resetamos o estado após o fechamento do modal
+            // Limpamos o cliente selecionado apenas depois que o modal sumir totalmente da tela
             setTimeout(() => {
               setSelectedClient(null)
               setIsEditMode(false)
-            }, 300)
+            }, 150)
           }
         }}
       >
@@ -363,9 +349,9 @@ export default function ClientsPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" type="button" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>Cancelar</Button>
-              <Button type="submit" disabled={isSaving}>
-                {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+              <Button variant="outline" type="button" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+              <Button type="submit">
+                <CheckCircle2 className="h-4 w-4 mr-2" />
                 {isEditMode ? "Salvar Alterações" : "Confirmar Cadastro"}
               </Button>
             </DialogFooter>
@@ -381,7 +367,7 @@ export default function ClientsPage() {
           if (!open) {
             setTimeout(() => {
               setSelectedClient(null)
-            }, 300)
+            }, 150)
           }
         }}
       >

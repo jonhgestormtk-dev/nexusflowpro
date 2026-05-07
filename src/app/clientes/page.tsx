@@ -71,6 +71,22 @@ export default function ClientsPage() {
   const [selectedClient, setSelectedClient] = React.useState<any>(null)
   const [isEditMode, setIsEditMode] = React.useState(false)
 
+  // GARANTIA DEFINITIVA: Destravar a tela se o modal fechar
+  React.useEffect(() => {
+    if (!isDialogOpen && !isProfileOpen) {
+      const restoreInteraction = () => {
+        document.body.style.pointerEvents = 'auto';
+        document.body.style.overflow = 'auto';
+        document.documentElement.style.pointerEvents = 'auto';
+      };
+      
+      // Executa imediatamente e após um pequeno delay para cobrir a animação do ShadCN
+      restoreInteraction();
+      const timer = setTimeout(restoreInteraction, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isDialogOpen, isProfileOpen]);
+
   // Query de Clientes
   const clientsQuery = useMemoFirebase(() => {
     if (!user) return null
@@ -88,7 +104,7 @@ export default function ClientsPage() {
     )
   }, [clients, searchTerm])
 
-  // Handlers de Abertura
+  // Handlers
   const handleOpenCreate = () => {
     setSelectedClient(null)
     setIsEditMode(false)
@@ -106,24 +122,16 @@ export default function ClientsPage() {
     setIsProfileOpen(true)
   }
 
-  // Handler de Fechamento Seguro
   const handleDialogChange = (open: boolean) => {
-    setIsDialogOpen(open)
     if (!open) {
-      // Limpa os dados apenas após a animação de saída terminar
+      setIsDialogOpen(false)
+      // Reset lento para não quebrar a renderização durante a saída
       setTimeout(() => {
-        if (!isDialogOpen) {
-          setSelectedClient(null)
-          setIsEditMode(false)
-        }
-      }, 300)
-    }
-  }
-
-  const handleProfileChange = (open: boolean) => {
-    setIsProfileOpen(open)
-    if (!open) {
-      setTimeout(() => setSelectedClient(null), 300)
+        setSelectedClient(null)
+        setIsEditMode(false)
+      }, 400)
+    } else {
+      setIsDialogOpen(true)
     }
   }
 
@@ -131,9 +139,11 @@ export default function ClientsPage() {
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     
-    const form = e.currentTarget
-    const formData = new FormData(form)
-    
+    // 1. Fecha o diálogo IMEDIATAMENTE (Síncrono)
+    setIsDialogOpen(false)
+
+    // 2. Extrai dados
+    const formData = new FormData(e.currentTarget)
     const clientData = {
       fullName: formData.get("fullName") as string,
       companyName: formData.get("companyName") as string,
@@ -148,7 +158,7 @@ export default function ClientsPage() {
       updatedAt: new Date().toISOString(),
     }
 
-    // 1. Processa a alteração no Firestore
+    // 3. Processa no Firestore (Background)
     if (isEditMode && selectedClient) {
       updateDocumentNonBlocking(doc(db, "clients", selectedClient.id), clientData)
       toast({ title: "Cliente atualizado", description: `${clientData.fullName} foi atualizado.` })
@@ -157,9 +167,6 @@ export default function ClientsPage() {
       addDocumentNonBlocking(collection(db, "clients"), newClient)
       toast({ title: "Cliente cadastrado", description: `${clientData.fullName} foi adicionado.` })
     }
-
-    // 2. Fecha o modal (o Radix cuidará da limpeza de pointer-events)
-    setIsDialogOpen(false)
   }
 
   const handleDeleteClient = (id: string, name: string) => {
@@ -290,7 +297,7 @@ export default function ClientsPage() {
       </Card>
 
       {/* Diálogo de Cadastro/Edição */}
-      <Dialog open={isDialogOpen} onOpenChange={handleDialogChange} modal={true}>
+      <Dialog open={isDialogOpen} onOpenChange={handleDialogChange}>
         <DialogContent className="sm:max-w-[600px] bg-card border-border">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
@@ -346,7 +353,7 @@ export default function ClientsPage() {
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" type="button" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+              <Button variant="outline" type="button" onClick={() => handleDialogChange(false)}>Cancelar</Button>
               <Button type="submit">
                 <CheckCircle2 className="h-4 w-4 mr-2" />
                 {isEditMode ? "Salvar Alterações" : "Confirmar Cadastro"}
@@ -357,7 +364,10 @@ export default function ClientsPage() {
       </Dialog>
 
       {/* Modal de Perfil do Cliente */}
-      <Dialog open={isProfileOpen} onOpenChange={handleProfileChange} modal={true}>
+      <Dialog open={isProfileOpen} onOpenChange={(v) => {
+        setIsProfileOpen(v);
+        if(!v) setTimeout(() => setSelectedClient(null), 400);
+      }}>
         <DialogContent className="sm:max-w-[700px] bg-card border-border max-h-[90vh] overflow-y-auto">
           {selectedClient && (
             <>
@@ -430,17 +440,6 @@ export default function ClientsPage() {
                     ) : (
                       <p className="text-muted-foreground italic">Endereço completo não cadastrado.</p>
                     )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 rounded-xl bg-primary/5 border border-primary/10">
-                    <span className="text-[10px] font-black uppercase text-primary tracking-widest block mb-1">Membro desde</span>
-                    <p className="font-bold">{selectedClient.createdAt ? new Date(selectedClient.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }) : 'N/A'}</p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-accent/5 border border-accent/10">
-                    <span className="text-[10px] font-black uppercase text-accent tracking-widest block mb-1">Última atualização</span>
-                    <p className="font-bold">{selectedClient.updatedAt ? new Date(selectedClient.updatedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' }) : 'N/A'}</p>
                   </div>
                 </div>
               </div>

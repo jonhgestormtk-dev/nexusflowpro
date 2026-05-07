@@ -12,7 +12,10 @@ import {
   Loader2,
   CheckCircle2,
   FileText,
-  Trash2
+  Trash2,
+  Info,
+  BadgeAlert,
+  Clock
 } from "lucide-react"
 import { extractContractDetails, AIContractDetailExtractorOutput } from "@/ai/flows/ai-contract-detail-extractor"
 
@@ -49,7 +52,11 @@ export default function ContractsPage() {
   const [isUploading, setIsUploading] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
   const [extractedData, setExtractedData] = React.useState<AIContractDetailExtractorOutput | null>(null)
-  const [open, setOpen] = React.useState(false)
+  const [isCreateOpen, setIsCreateOpen] = React.useState(false)
+  
+  // Estado para visualização de detalhes
+  const [selectedContract, setSelectedContract] = React.useState<any>(null)
+  const [isDetailsOpen, setIsDetailsOpen] = React.useState(false)
 
   const contractsQuery = useMemoFirebase(() => {
     if (!user) return null
@@ -60,8 +67,6 @@ export default function ContractsPage() {
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
-    console.log("Arquivo selecionado:", file?.name, file?.type, file?.size)
-    
     if (!file) return
 
     if (file.type !== "application/pdf") {
@@ -73,11 +78,19 @@ export default function ContractsPage() {
       return
     }
 
+    if (file.size > 2 * 1024 * 1024) {
+      toast({
+        variant: "destructive",
+        title: "Arquivo muito grande",
+        description: "O limite para análise via IA é de 2MB por arquivo.",
+      })
+      return
+    }
+
     setIsUploading(true)
     const reader = new FileReader()
 
-    reader.onerror = (e) => {
-      console.error("Erro FileReader:", e)
+    reader.onerror = () => {
       setIsUploading(false)
       toast({
         variant: "destructive",
@@ -89,10 +102,7 @@ export default function ContractsPage() {
     reader.onload = async () => {
       try {
         const dataUri = reader.result as string
-        console.log("Iniciando extração via IA (Server Action)...")
-        
         const result = await extractContractDetails({ pdfDataUri: dataUri })
-        console.log("Resultado da IA:", result)
         
         if (result) {
           setExtractedData(result)
@@ -102,7 +112,6 @@ export default function ContractsPage() {
           })
         }
       } catch (error: any) {
-        console.error("Erro no processamento do contrato:", error)
         toast({
           variant: "destructive",
           title: "Erro na Análise",
@@ -136,7 +145,7 @@ export default function ContractsPage() {
     addDocumentNonBlocking(collection(db, "contracts"), newContract)
       .then(() => {
         setIsSaving(false)
-        setOpen(false)
+        setIsCreateOpen(false)
         setExtractedData(null)
         toast({
           title: "Contrato Registrado",
@@ -144,12 +153,11 @@ export default function ContractsPage() {
         })
       })
       .catch((err) => {
-        console.error("Erro ao salvar contrato:", err)
         setIsSaving(false)
         toast({
           variant: "destructive",
           title: "Erro ao salvar",
-          description: "Não foi possível registrar o contrato no banco de dados.",
+          description: "Não foi possível registrar o contrato.",
         })
       })
   }
@@ -162,6 +170,11 @@ export default function ContractsPage() {
     })
   }
 
+  const openDetails = (contract: any) => {
+    setSelectedContract(contract)
+    setIsDetailsOpen(true)
+  }
+
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -169,9 +182,9 @@ export default function ContractsPage() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Gestão de Contratos</h1>
           <p className="text-muted-foreground">Ciclo de vida e automação inteligente de documentos.</p>
         </div>
-        <Dialog open={open} onOpenChange={(v) => {
+        <Dialog open={isCreateOpen} onOpenChange={(v) => {
           if (!v) setExtractedData(null);
-          setOpen(v);
+          setIsCreateOpen(v);
         }}>
           <DialogTrigger asChild>
             <Button className="bg-primary hover:bg-primary/90">
@@ -240,7 +253,7 @@ export default function ContractsPage() {
               )}
             </div>
             <DialogFooter className="gap-2 sm:gap-0">
-              <Button variant="outline" onClick={() => setOpen(false)} disabled={isSaving || isUploading}>
+              <Button variant="outline" onClick={() => setIsCreateOpen(false)} disabled={isSaving || isUploading}>
                 Cancelar
               </Button>
               {extractedData && (
@@ -323,7 +336,11 @@ export default function ContractsPage() {
                   </div>
                 </div>
 
-                <Button variant="outline" className="w-full h-9 text-xs font-bold border-border">
+                <Button 
+                  variant="outline" 
+                  className="w-full h-9 text-xs font-bold border-border"
+                  onClick={() => openDetails(contract)}
+                >
                   Ver Detalhes <ArrowRight className="ml-2 h-3 w-3" />
                 </Button>
               </CardContent>
@@ -336,12 +353,102 @@ export default function ContractsPage() {
              </div>
              <h3 className="text-lg font-bold mb-1">Nenhum contrato cadastrado</h3>
              <p className="text-sm text-muted-foreground max-w-xs mx-auto mb-6">Inicie agora fazendo o upload de um PDF.</p>
-             <Button variant="outline" className="border-border text-xs font-bold" onClick={() => setOpen(true)}>
+             <Button variant="outline" className="border-border text-xs font-bold" onClick={() => setIsCreateOpen(true)}>
                <Plus className="mr-2 h-4 w-4" /> Criar Primeiro Contrato
              </Button>
           </div>
         )}
       </div>
+
+      {/* Modal de Detalhes do Contrato */}
+      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+        <DialogContent className="sm:max-w-[600px] bg-card border-border">
+          {selectedContract && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center justify-between pr-8">
+                  <div className="space-y-1">
+                    <DialogTitle className="text-2xl font-bold">{selectedContract.clientName}</DialogTitle>
+                    <DialogDescription className="font-medium text-primary">
+                      {selectedContract.serviceType}
+                    </DialogDescription>
+                  </div>
+                  <Badge 
+                    className={cn(
+                      "font-black tracking-widest px-3 py-1",
+                      selectedContract.status === "Ativo" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-destructive/10 text-destructive border-destructive/20"
+                    )}
+                  >
+                    {selectedContract.status.toUpperCase()}
+                  </Badge>
+                </div>
+              </DialogHeader>
+              
+              <div className="grid gap-6 py-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2 p-4 rounded-xl bg-muted/20 border border-border/50">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <CreditCard className="h-4 w-4" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest">Valor Mensal</span>
+                    </div>
+                    <p className="text-xl font-black">R$ {Number(selectedContract.monthlyValue).toLocaleString('pt-BR')}</p>
+                  </div>
+                  <div className="space-y-2 p-4 rounded-xl bg-muted/20 border border-border/50">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <CalendarDays className="h-4 w-4" />
+                      <span className="text-[10px] font-bold uppercase tracking-widest">Início</span>
+                    </div>
+                    <p className="text-xl font-black">{selectedContract.startDate}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                   <div className="flex items-center gap-2">
+                     <Info className="h-4 w-4 text-accent" />
+                     <h4 className="text-xs font-black uppercase tracking-widest text-foreground">Termos e Condições</h4>
+                   </div>
+                   <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
+                      <p className="text-sm text-muted-foreground leading-relaxed">
+                        {selectedContract.paymentTerms || "Nenhum termo específico detalhado para este contrato."}
+                      </p>
+                   </div>
+                </div>
+
+                <div className="space-y-3">
+                   <div className="flex items-center gap-2">
+                     <Clock className="h-4 w-4 text-accent" />
+                     <h4 className="text-xs font-black uppercase tracking-widest text-foreground">Informações Adicionais</h4>
+                   </div>
+                   <div className="grid grid-cols-2 gap-4 text-xs">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-muted-foreground font-medium">Registrado em:</span>
+                        <span className="font-bold">{new Date(selectedContract.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-muted-foreground font-medium">Saúde do Contrato:</span>
+                        <div className="flex items-center gap-2">
+                          <span className={cn("font-bold", selectedContract.score > 80 ? "text-emerald-500" : "text-destructive")}>
+                            {selectedContract.score}%
+                          </span>
+                          <BadgeAlert className={cn("h-3 w-3", selectedContract.score > 80 ? "text-emerald-500" : "text-destructive")} />
+                        </div>
+                      </div>
+                   </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsDetailsOpen(false)} className="w-full sm:w-auto">
+                  Fechar
+                </Button>
+                <Button className="bg-primary w-full sm:w-auto">
+                  Editar Contrato
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

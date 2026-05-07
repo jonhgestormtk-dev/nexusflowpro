@@ -1,3 +1,10 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "hero-bg",
+      "description": "Premium dark technology background",
+      "imageUrl": "https://picsum.photos/seed/tech-bg/1920/1080",
+      "imageHint": "abstract technology dark"
+    }
+  ]
 }

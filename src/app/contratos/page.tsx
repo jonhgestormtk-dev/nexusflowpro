@@ -46,7 +46,7 @@ import {
   updateDocumentNonBlocking,
   deleteDocumentNonBlocking
 } from "@/firebase"
-import { collection, query, orderBy, doc } from "firebase/firestore"
+import { collection, query, orderBy, doc, where, getDocs } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 
 export default function ContractsPage() {
@@ -140,7 +140,6 @@ export default function ContractsPage() {
       dueDate = new Date();
     }
     
-    // Adiciona 30 dias se a data parseada for inválida ou muito antiga
     if (isNaN(dueDate.getTime())) {
       dueDate = new Date();
     }
@@ -162,16 +161,15 @@ export default function ContractsPage() {
       const contractRef = await addDocumentNonBlocking(collection(db, "contracts"), newContract);
       
       if (contractRef) {
-        // AUTOMAÇÃO CRÍTICA: Criar fatura vinculada com NOME DO CLIENTE explícito
         const firstInvoice = {
           contractId: contractRef.id,
-          clientName: newContract.clientName, // CRUCIAL para o filtro do Faturamento
+          clientName: newContract.clientName,
           amount: newContract.monthlyValue,
           issueDate: now.toISOString(),
           dueDate: dueDate.toISOString(),
           paymentStatus: "Pendente",
           paymentMethod: "Manual",
-          createdAt: now.toISOString(), // CRUCIAL para a ordenação do Faturamento
+          createdAt: now.toISOString(),
           updatedAt: now.toISOString()
         };
 
@@ -195,24 +193,46 @@ export default function ContractsPage() {
     }
   }
 
-  const handleUpdateContract = () => {
+  const handleUpdateContract = async () => {
     if (!selectedContract) return
     setIsSaving(true)
 
     const { id, ...dataToUpdate } = selectedContract
     const updatedData = {
       ...dataToUpdate,
+      monthlyValue: Number(dataToUpdate.monthlyValue),
       updatedAt: new Date().toISOString()
     }
 
+    // 1. Atualiza o documento do contrato
     updateDocumentNonBlocking(doc(db, "contracts", id), updatedData)
     
+    // 2. Sincroniza faturas pendentes vinculadas a este contrato
+    try {
+      const q = query(
+        collection(db, "invoices"), 
+        where("contractId", "==", id),
+        where("paymentStatus", "==", "Pendente")
+      );
+      
+      const querySnapshot = await getDocs(q);
+      querySnapshot.forEach((invoiceDoc) => {
+        updateDocumentNonBlocking(doc(db, "invoices", invoiceDoc.id), {
+          amount: updatedData.monthlyValue,
+          clientName: updatedData.clientName, // Atualiza nome se mudou
+          updatedAt: new Date().toISOString()
+        });
+      });
+    } catch (e) {
+      console.error("Falha ao sincronizar faturas:", e);
+    }
+
     setIsSaving(false)
     setIsEditing(false)
     setIsDetailsOpen(false)
     toast({
       title: "Contrato Atualizado",
-      description: "As alterações foram salvas com sucesso.",
+      description: "As alterações e faturas pendentes foram sincronizadas.",
     })
   }
 
@@ -468,7 +488,7 @@ export default function ContractsPage() {
                         <Input 
                           type="number"
                           value={selectedContract.monthlyValue} 
-                          onChange={(e) => setSelectedContract({...selectedContract, monthlyValue: Number(e.target.value)})}
+                          onChange={(e) => setSelectedContract({...selectedContract, monthlyValue: e.target.value})}
                           className="bg-muted/30"
                         />
                       </div>

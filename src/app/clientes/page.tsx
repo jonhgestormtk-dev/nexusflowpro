@@ -145,6 +145,7 @@ export default function ClientsPage() {
           description: `${clientData.fullName} foi adicionado com sucesso.`,
         })
       }
+      setIsDialogOpen(false)
     } catch (error) {
       console.error(error)
       toast({
@@ -153,12 +154,7 @@ export default function ClientsPage() {
         description: "Ocorreu um problema ao salvar os dados.",
       })
     } finally {
-      // Pequeno timeout para garantir que as animações do Dialog não travem
-      setTimeout(() => {
-        setIsSaving(false)
-        setIsDialogOpen(false)
-        setSelectedClient(null)
-      }, 100)
+      setIsSaving(false)
     }
   }
 
@@ -294,14 +290,21 @@ export default function ClientsPage() {
       </Card>
 
       {/* Diálogo de Cadastro/Edição */}
-      <Dialog open={isDialogOpen} onOpenChange={(open) => {
-        if (!open) {
-          setIsDialogOpen(false)
-          setSelectedClient(null)
-        }
-      }}>
+      <Dialog 
+        open={isDialogOpen} 
+        onOpenChange={(open) => {
+          setIsDialogOpen(open)
+          if (!open) {
+            // Pequeno delay para resetar os dados apenas após a animação de fechamento
+            setTimeout(() => {
+              setSelectedClient(null)
+              setIsEditMode(false)
+            }, 300)
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-[600px] bg-card border-border">
-          <form key={selectedClient?.id || "new"} onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle>{isEditMode ? "Editar Cliente" : "Cadastrar Novo Cliente"}</DialogTitle>
               <DialogDescription>
@@ -343,6 +346,16 @@ export default function ClientsPage() {
                 <Label htmlFor="address">Endereço</Label>
                 <Input id="address" name="address" defaultValue={selectedClient?.address} placeholder="Rua, Número, Bairro" className="bg-muted/30" />
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="city">Cidade</Label>
+                  <Input id="city" name="city" defaultValue={selectedClient?.city} placeholder="Ex: São Paulo" className="bg-muted/30" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="state">Estado</Label>
+                  <Input id="state" name="state" defaultValue={selectedClient?.state} placeholder="Ex: SP" className="bg-muted/30" />
+                </div>
+              </div>
             </div>
             <DialogFooter>
               <Button variant="outline" type="button" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>Cancelar</Button>
@@ -356,12 +369,17 @@ export default function ClientsPage() {
       </Dialog>
 
       {/* Modal de Perfil do Cliente */}
-      <Dialog open={isProfileOpen} onOpenChange={(open) => {
-        if (!open) {
-          setIsProfileOpen(false)
-          setSelectedClient(null)
-        }
-      }}>
+      <Dialog 
+        open={isProfileOpen} 
+        onOpenChange={(open) => {
+          setIsProfileOpen(open)
+          if (!open) {
+            setTimeout(() => {
+              setSelectedClient(null)
+            }, 300)
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-[700px] bg-card border-border max-h-[90vh] overflow-y-auto">
           {selectedClient && (
             <>

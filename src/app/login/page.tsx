@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -10,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/hooks/use-toast"
-import { doc, serverTimestamp } from "firebase/firestore"
+import { doc } from "firebase/firestore"
 
 export default function LoginPage() {
   const [email, setEmail] = React.useState("")
@@ -30,8 +31,8 @@ export default function LoginPage() {
     
     if (isSignUp) {
       initiateEmailSignUp(auth, email, password, async (error: any) => {
-        setIsLoading(false)
         if (error) {
+          setIsLoading(false)
           toast({
             variant: "destructive",
             title: "Erro no cadastro",
@@ -40,31 +41,39 @@ export default function LoginPage() {
           return
         }
 
-        if (auth.currentUser) {
-          const userId = auth.currentUser.uid;
-          
-          // Criar documento do usuário no Firestore
-          setDocumentNonBlocking(doc(db, "users", userId), {
-            id: userId,
-            email: email,
-            fullName: fullName,
-            role: "Admin",
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }, { merge: true });
+        // Aguarda um pequeno intervalo para o Firebase atualizar o currentUser
+        const checkUser = setInterval(() => {
+          if (auth.currentUser) {
+            clearInterval(checkUser)
+            const userId = auth.currentUser.uid;
+            
+            // 1. Criar documento do usuário no Firestore (Entidade User)
+            setDocumentNonBlocking(doc(db, "users", userId), {
+              id: userId,
+              email: email,
+              fullName: fullName || "Usuário Admin",
+              role: "Admin",
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            }, { merge: true });
 
-          // Adicionar permissão de Admin na coleção DBAC
-          setDocumentNonBlocking(doc(db, "roles_admin", userId), { 
-            active: true,
-            email: email,
-            createdAt: new Date().toISOString()
-          }, { merge: true });
+            // 2. Criar permissão de Admin na coleção DBAC (roles_admin)
+            // Isso é o que libera o acesso nas Security Rules
+            setDocumentNonBlocking(doc(db, "roles_admin", userId), { 
+              active: true,
+              email: email,
+              userId: userId,
+              createdAt: new Date().toISOString()
+            }, { merge: true });
 
-          toast({
-            title: "Conta criada!",
-            description: "Bem-vindo ao NexusFlow Pro. Suas permissões de Admin foram configuradas.",
-          });
-        }
+            setIsLoading(false)
+            toast({
+              title: "Sucesso!",
+              description: "Sua conta de Administrador foi configurada.",
+            });
+            router.push("/dashboard")
+          }
+        }, 500)
       })
     } else {
       initiateEmailSignIn(auth, email, password, (error: any) => {
@@ -79,6 +88,8 @@ export default function LoginPage() {
             title: "Erro no login",
             description: errorMessage,
           })
+        } else {
+          router.push("/dashboard")
         }
       })
     }
@@ -99,7 +110,7 @@ export default function LoginPage() {
               {isSignUp ? "Criar Conta" : "NexusFlow Pro"}
             </CardTitle>
             <CardDescription className="text-muted-foreground font-medium">
-              {isSignUp ? "Registre-se para começar" : "Entre para gerenciar sua operação"}
+              {isSignUp ? "Registre-se para começar como Admin" : "Entre para gerenciar sua operação"}
             </CardDescription>
           </div>
         </CardHeader>
@@ -109,7 +120,7 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <Label htmlFor="name">Nome Completo</Label>
                 <div className="relative">
-                  <LogIn className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <UserPlus className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input 
                     id="name" 
                     placeholder="Seu nome" 

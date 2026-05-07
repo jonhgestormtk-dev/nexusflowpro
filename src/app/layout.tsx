@@ -1,7 +1,6 @@
 
 "use client"
 
-import type { Metadata } from 'next';
 import './globals.css';
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
@@ -19,26 +18,29 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter()
 
   useEffect(() => {
+    // Se o carregamento terminou e não há usuário, e não estamos na página de login, redireciona
     if (!isUserLoading && !user && pathname !== '/login') {
       router.push('/login')
     }
+    // Se há usuário e estamos no login, vai para o dashboard
     if (!isUserLoading && user && pathname === '/login') {
       router.push('/dashboard')
     }
   }, [user, isUserLoading, pathname, router])
 
+  // Enquanto estiver carregando o estado de Auth, mostra um spinner premium
   if (isUserLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6">
         <div className="flex flex-col items-center gap-4">
           <div className="h-12 w-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-muted-foreground font-bold tracking-widest text-xs animate-pulse">NEXUSFLOW PRO</p>
+          <p className="text-muted-foreground font-bold tracking-widest text-xs animate-pulse uppercase">Autenticando NexusFlow Pro</p>
         </div>
       </div>
     )
   }
 
-  // Evita renderizar conteúdo protegido se o usuário não estiver logado
+  // Se não estiver logado e não for página de login, bloqueia a renderização para evitar chamadas de API indevidas
   if (!user && pathname !== '/login') {
     return null;
   }
@@ -61,7 +63,6 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
-        <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased bg-background text-foreground selection:bg-primary/30 overflow-x-hidden">
         <FirebaseClientProvider>

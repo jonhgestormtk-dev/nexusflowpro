@@ -15,14 +15,6 @@ service cloud.firestore {
      * - Role assignments (admin, finance, commercial) are stored in dedicated collections 
      *   for "Existence-over-Content" validation.
      * - Private user data (notifications) is nested under /users/{userId} for path-based security.
-     * 
-     * Key Security Decisions:
-     * - Denormalization for Authorization: Critical IDs (ownerId, assignedToUserId) are 
-     *   stored directly on documents to avoid costly get() calls.
-     * - Prototyping Flexibility: Rules strictly enforce 'who' can access data, but 
-     *   do not enforce strict data types or schemas to allow for rapid frontend iteration.
-     * - Immutability: Relational fields (like clientId on a contract) are enforced as 
-     *   immutable during updates.
      */
 
     // --- Helper Functions ---
@@ -53,13 +45,6 @@ service cloud.firestore {
 
     // --- Collection Rules ---
 
-    /**
-     * @description Rules for the User profiles. Users can manage themselves; Admins manage everyone.
-     * @path /users/{userId}
-     * @allow (get) If user is the owner or an Admin.
-     * @deny (write) If user is not the owner or an Admin.
-     * @principle Path-based ownership and role-based administration.
-     */
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
@@ -67,13 +52,6 @@ service cloud.firestore {
       allow update: if (isOwner(userId) || isAdmin()) && resource != null;
       allow delete: if isAdmin() && resource != null;
 
-      /**
-       * @description User-specific notifications. Strict path-based ownership.
-       * @path /users/{userId}/notifications/{notificationId}
-       * @allow (list) If auth.uid matches the path userId.
-       * @deny (read/write) If user is not the notification owner.
-       * @principle Path-based isolation for private user data.
-       */
       match /notifications/{notificationId} {
         allow get, list: if isOwner(userId);
         allow create: if isOwner(userId) && request.resource.data.userId == userId;
@@ -82,71 +60,40 @@ service cloud.firestore {
       }
     }
 
-    /**
-     * @description Role assignment collections (Existence-over-Content).
-     * @path /roles_admin/{userId}, /roles_financeiro/{userId}, /roles_comercial/{userId}
-     * @allow (read) If signed in.
-     * @deny (write) Any non-Admin user attempting to modify roles.
-     * @principle Only Admins can elevate or revoke permissions.
-     */
+    // Permite que o usuário crie seu próprio papel inicial (necessário para o fluxo de cadastro do protótipo)
     match /roles_admin/{userId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow create: if isOwner(userId);
+      allow update, delete: if isAdmin();
     }
     match /roles_financeiro/{userId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow create: if isOwner(userId);
+      allow update, delete: if isAdmin();
     }
     match /roles_comercial/{userId} {
       allow read: if isSignedIn();
-      allow write: if isAdmin();
+      allow create: if isOwner(userId);
+      allow update, delete: if isAdmin();
     }
 
-    /**
-     * @description Global company settings.
-     * @path /companySettings/{settingsId}
-     * @allow (get) If user is internal staff.
-     * @deny (write) If user is not an Admin.
-     * @principle Restricts configuration changes to top-level administrators.
-     */
     match /companySettings/{settingsId} {
       allow get: if isInternalStaff();
       allow list: if isAdmin();
       allow create, update, delete: if isAdmin();
     }
 
-    /**
-     * @description Service catalog.
-     * @path /services/{serviceId}
-     * @allow (read) If internal staff.
-     * @deny (write) If not an Admin.
-     * @principle Only Admins manage the product/service definitions.
-     */
     match /services/{serviceId} {
       allow get, list: if isInternalStaff();
       allow write: if isAdmin();
     }
 
-    /**
-     * @description Client records management.
-     * @path /clients/{clientId}
-     * @allow (read/write) If user is Admin, Financeiro, or Comercial.
-     * @deny (all) Public or unauthenticated access.
-     * @principle Role-based access to core business entities.
-     */
     match /clients/{clientId} {
       allow get, list: if isInternalStaff();
       allow create, update: if isInternalStaff();
       allow delete: if isAdmin();
     }
 
-    /**
-     * @description Recurring contracts management.
-     * @path /contracts/{contractId}
-     * @allow (create) If internal staff; enforces valid clientId link.
-     * @deny (update) If attempting to change the linked clientId.
-     * @principle Relational integrity and role-based control.
-     */
     match /contracts/{contractId} {
       allow get, list: if isInternalStaff();
       allow create: if isInternalStaff() && request.resource.data.clientId != null;
@@ -154,39 +101,18 @@ service cloud.firestore {
       allow delete: if isAdmin() && resource != null;
     }
 
-    /**
-     * @description Billing invoices.
-     * @path /invoices/{invoiceId}
-     * @allow (read) Internal staff.
-     * @deny (write) Non-Financeiro or non-Admin users.
-     * @principle Financial data limited to specific administrative roles.
-     */
     match /invoices/{invoiceId} {
       allow get, list: if isInternalStaff();
       allow create, update: if isAdmin() || isFinanceiro();
       allow delete: if isAdmin() && resource != null;
     }
 
-    /**
-     * @description Payment transaction records.
-     * @path /payments/{paymentId}
-     * @allow (read) Internal staff.
-     * @deny (write) Non-Financeiro or non-Admin users.
-     * @principle Financial audit logs restricted to management.
-     */
     match /payments/{paymentId} {
       allow get, list: if isInternalStaff();
       allow create: if isAdmin() || isFinanceiro();
       allow update, delete: if isAdmin() && resource != null;
     }
 
-    /**
-     * @description File metadata for storage.
-     * @path /uploads/{uploadId}
-     * @allow (create) If user sets themselves as the uploader.
-     * @deny (update) If user is not the uploader or Admin.
-     * @principle Ownership-based management of uploaded files.
-     */
     match /uploads/{uploadId} {
       allow get, list: if isInternalStaff();
       allow create: if isInternalStaff() && request.resource.data.uploadedByUserId == request.auth.uid;
@@ -194,26 +120,12 @@ service cloud.firestore {
       allow delete: if isAdmin() || (resource != null && resource.data.uploadedByUserId == request.auth.uid);
     }
 
-    /**
-     * @description Audit logs for system activity.
-     * @path /activityLogs/{activityId}
-     * @allow (read) Admins for auditing.
-     * @deny (write) Clients (System/Functions should handle creation).
-     * @principle Read-only audit trail for administrative review.
-     */
     match /activityLogs/{activityId} {
       allow get, list: if isInternalStaff();
-      allow create: if isInternalStaff(); // Allowing UI to log, though Functions are preferred.
-      allow update, delete: if false; // Audit logs should be immutable.
+      allow create: if isInternalStaff();
+      allow update, delete: if false;
     }
 
-    /**
-     * @description CRM Lead management.
-     * @path /crmLeads/{leadId}
-     * @allow (read) Admin or assigned Comercial staff.
-     * @deny (update) If user is not assigned and not an Admin.
-     * @principle Resource-specific role assignment for sales pipeline.
-     */
     match /crmLeads/{leadId} {
       allow get, list: if isInternalStaff();
       allow create: if isAdmin() || isComercial();
@@ -221,13 +133,6 @@ service cloud.firestore {
       allow delete: if isAdmin() && resource != null;
     }
 
-    /**
-     * @description Calendar and schedule entries.
-     * @path /scheduleEntries/{scheduleEntryId}
-     * @allow (read) Admin or if user is in the assignedToUserIds array.
-     * @deny (all) Unauthenticated or non-assigned users.
-     * @principle Collaborative access control via member arrays.
-     */
     match /scheduleEntries/{scheduleEntryId} {
       allow get, list: if isAdmin() || (isSignedIn() && (request.auth.uid in resource.data.assignedToUserIds));
       allow create: if isInternalStaff();

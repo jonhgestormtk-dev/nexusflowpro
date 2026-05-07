@@ -1,0 +1,1015 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents an internal user of the SaaS platform with specific roles and access levels (e.g., Admin, Financeiro, Comercial). Authentication data is managed externally by Firebase Authentication.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user, used for communication and as a unique identifier for Firebase Authentication.",
+          "format": "email"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full name of the user."
+        },
+        "role": {
+          "type": "string",
+          "description": "Assigned role of the user within the system, determining access permissions. (e.g., 'Admin', 'Financeiro', 'Comercial')."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the user account was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of the last update to the user's information.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "fullName",
+        "role",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Client": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Client",
+      "type": "object",
+      "description": "Represents a customer of the digital solutions company, including their contact information, contracted services, and overall status.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Client entity."
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full name of the client contact person or primary representative."
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Legal name of the client's company."
+        },
+        "documentNumber": {
+          "type": "string",
+          "description": "CPF (for individuals) or CNPJ (for companies) of the client."
+        },
+        "email": {
+          "type": "string",
+          "description": "Primary email address for client communication.",
+          "format": "email"
+        },
+        "whatsapp": {
+          "type": "string",
+          "description": "WhatsApp contact number for the client."
+        },
+        "address": {
+          "type": "string",
+          "description": "Street address of the client."
+        },
+        "city": {
+          "type": "string",
+          "description": "City of the client's address."
+        },
+        "state": {
+          "type": "string",
+          "description": "State of the client's address."
+        },
+        "zipCode": {
+          "type": "string",
+          "description": "Postal code (CEP) of the client's address."
+        },
+        "serviceIds": {
+          "type": "array",
+          "description": "References to Service entities that this client has contracted. (Relationship: Client N:N Service)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "status": {
+          "type": "string",
+          "description": "Current status of the client (e.g., 'Active', 'Inactive', 'Delinquent')."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Internal observations or remarks about the client."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the client record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of the last update to the client's information.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "fullName",
+        "companyName",
+        "documentNumber",
+        "email",
+        "whatsapp",
+        "address",
+        "city",
+        "state",
+        "zipCode",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Service": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Service",
+      "type": "object",
+      "description": "Defines the types of digital solutions offered by the company (e.g., professional websites, custom applications, management systems).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Service entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the service offered (e.g., 'Sites profissionais', 'Aplicativos personalizados')."
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of the service."
+        },
+        "defaultPrice": {
+          "type": "number",
+          "description": "Optional default pricing for the service, if applicable."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the service record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of the last update to the service's information.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Contract": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Contract",
+      "type": "object",
+      "description": "Manages details of recurring service agreements with clients, including financial terms, dates, and status.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Contract entity."
+        },
+        "clientId": {
+          "type": "string",
+          "description": "Reference to the Client entity associated with this contract. (Relationship: Client 1:N Contract)"
+        },
+        "serviceId": {
+          "type": "string",
+          "description": "Reference to the Service entity provided by this contract. (Relationship: Service 1:N Contract)"
+        },
+        "monthlyValue": {
+          "type": "number",
+          "description": "The recurring monthly value of the contract."
+        },
+        "startDate": {
+          "type": "string",
+          "description": "The date when the contract officially started.",
+          "format": "date-time"
+        },
+        "endDate": {
+          "type": "string",
+          "description": "The date when the contract is scheduled to end, if applicable. Can be null for open-ended contracts with automatic renewal.",
+          "format": "date-time"
+        },
+        "renewalType": {
+          "type": "string",
+          "description": "Defines how the contract renews (e.g., 'Automatic', 'Manual')."
+        },
+        "billingFrequency": {
+          "type": "string",
+          "description": "The frequency at which the client is billed (e.g., 'Monthly', 'Quarterly', 'Annually')."
+        },
+        "status": {
+          "type": "string",
+          "description": "Current operational status of the contract (e.g., 'Active', 'Overdue', 'Suspended', 'Canceled', 'Finished')."
+        },
+        "contractPdfId": {
+          "type": "string",
+          "description": "Reference to an Upload entity containing the contract PDF document. (Relationship: Upload 1:1 Contract)"
+        },
+        "signedContractPdfId": {
+          "type": "string",
+          "description": "Reference to an Upload entity containing the digitally signed contract PDF. (Relationship: Upload 1:1 Contract)"
+        },
+        "lastPaymentDate": {
+          "type": "string",
+          "description": "The date of the last successful payment received for this contract. This can be derived from invoices.",
+          "format": "date-time"
+        },
+        "nextInvoiceDate": {
+          "type": "string",
+          "description": "The calculated date for the next expected invoice generation for this contract.",
+          "format": "date-time"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Internal observations or remarks about the contract."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the contract record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of the last update to the contract's information.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "clientId",
+        "serviceId",
+        "monthlyValue",
+        "startDate",
+        "renewalType",
+        "billingFrequency",
+        "status",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Invoice": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Invoice",
+      "type": "object",
+      "description": "Records individual billing statements generated for a contract, tracking amount due, due date, and payment status.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Invoice entity."
+        },
+        "contractId": {
+          "type": "string",
+          "description": "Reference to the Contract entity this invoice is associated with. (Relationship: Contract 1:N Invoice)"
+        },
+        "amount": {
+          "type": "number",
+          "description": "The total amount due for this invoice."
+        },
+        "issueDate": {
+          "type": "string",
+          "description": "The date when the invoice was generated and issued.",
+          "format": "date-time"
+        },
+        "dueDate": {
+          "type": "string",
+          "description": "The date by which this invoice is expected to be paid.",
+          "format": "date-time"
+        },
+        "paymentStatus": {
+          "type": "string",
+          "description": "Current payment status of the invoice (e.g., 'Pending', 'Paid', 'Overdue', 'Canceled')."
+        },
+        "paymentMethod": {
+          "type": "string",
+          "description": "The intended payment method for this invoice (e.g., 'PIX', 'Credit Card', 'Bank Slip', 'Manual')."
+        },
+        "proofOfPaymentId": {
+          "type": "string",
+          "description": "Reference to an Upload entity containing proof of payment (e.g., bank transfer receipt), if applicable. (Relationship: Upload 1:1 Invoice)"
+        },
+        "paidDate": {
+          "type": "string",
+          "description": "The date when the invoice was successfully paid.",
+          "format": "date-time"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the invoice record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of the last update to the invoice's information.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "contractId",
+        "amount",
+        "issueDate",
+        "dueDate",
+        "paymentStatus",
+        "paymentMethod",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "Payment": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Payment",
+      "type": "object",
+      "description": "Records individual payment transactions received, linking them to a specific invoice.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Payment entity."
+        },
+        "invoiceId": {
+          "type": "string",
+          "description": "Reference to the Invoice entity this payment is applied to. (Relationship: Invoice 1:N Payment)"
+        },
+        "amountPaid": {
+          "type": "number",
+          "description": "The actual amount paid in this transaction."
+        },
+        "paymentDate": {
+          "type": "string",
+          "description": "The date and time when the payment was received.",
+          "format": "date-time"
+        },
+        "method": {
+          "type": "string",
+          "description": "The method used for this payment (e.g., 'PIX', 'Credit Card', 'Bank Slip', 'Manual')."
+        },
+        "transactionId": {
+          "type": "string",
+          "description": "Optional unique transaction identifier from the payment gateway or bank."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Internal observations or remarks about the payment."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the payment record was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "invoiceId",
+        "amountPaid",
+        "paymentDate",
+        "method",
+        "createdAt"
+      ]
+    },
+    "Upload": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Upload",
+      "type": "object",
+      "description": "Manages metadata for files stored in Firebase Storage, such as contract PDFs, signed documents, or payment proofs.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Upload entity."
+        },
+        "fileName": {
+          "type": "string",
+          "description": "The original name of the uploaded file."
+        },
+        "fileType": {
+          "type": "string",
+          "description": "The MIME type of the uploaded file (e.g., 'application/pdf', 'image/jpeg')."
+        },
+        "fileSize": {
+          "type": "number",
+          "description": "Size of the uploaded file in bytes."
+        },
+        "storagePath": {
+          "type": "string",
+          "description": "The path or URI to the file's location within Firebase Storage. This is the primary way to access the file.",
+          "format": "uri"
+        },
+        "uploadedByUserId": {
+          "type": "string",
+          "description": "Reference to the User entity who uploaded this file. (Relationship: User 1:N Upload)"
+        },
+        "linkedEntityType": {
+          "type": "string",
+          "description": "The type of entity this upload is associated with (e.g., 'Contract', 'Invoice', 'Client')."
+        },
+        "linkedEntityId": {
+          "type": "string",
+          "description": "The unique identifier of the entity this upload is linked to."
+        },
+        "description": {
+          "type": "string",
+          "description": "A brief description or context for the uploaded file."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the file was uploaded and this record was created.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "fileName",
+        "fileType",
+        "fileSize",
+        "storagePath",
+        "uploadedByUserId",
+        "linkedEntityType",
+        "linkedEntityId",
+        "createdAt"
+      ]
+    },
+    "ActivityLog": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ActivityLog",
+      "type": "object",
+      "description": "Records significant actions and changes within the system for audit trails, client history, and activity timelines.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ActivityLog entry."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User entity who performed the activity. (Relationship: User 1:N ActivityLog)"
+        },
+        "activityType": {
+          "type": "string",
+          "description": "Categorization of the activity (e.g., 'ClientCreated', 'ContractUpdated', 'InvoicePaid')."
+        },
+        "description": {
+          "type": "string",
+          "description": "A detailed description of the activity that occurred."
+        },
+        "entityType": {
+          "type": "string",
+          "description": "The type of entity primarily affected by this activity (e.g., 'Client', 'Contract', 'Invoice')."
+        },
+        "entityId": {
+          "type": "string",
+          "description": "The unique identifier of the entity affected by this activity."
+        },
+        "timestamp": {
+          "type": "string",
+          "description": "The exact date and time when the activity took place.",
+          "format": "date-time"
+        },
+        "changes": {
+          "type": "string",
+          "description": "JSON string representing the changes made, if the activity involved data modification (e.g., '{ \"oldValue\": \"active\", \"newValue\": \"suspended\" }')."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "activityType",
+        "description",
+        "entityType",
+        "entityId",
+        "timestamp"
+      ]
+    },
+    "Notification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Notification",
+      "type": "object",
+      "description": "Stores system-generated alerts and messages for internal users (e.g., reminders for upcoming payments, contract expirations, or new leads).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Notification entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the User entity who should receive this notification. (Relationship: User 1:N Notification)"
+        },
+        "type": {
+          "type": "string",
+          "description": "The category or nature of the notification (e.g., 'PaymentDue', 'ContractExpiring', 'InvoiceOverdue', 'NewLead')."
+        },
+        "message": {
+          "type": "string",
+          "description": "The full content of the notification message."
+        },
+        "targetUrl": {
+          "type": "string",
+          "description": "A URL within the application that the user can navigate to for more details related to the notification.",
+          "format": "uri"
+        },
+        "isRead": {
+          "type": "boolean",
+          "description": "Indicates whether the user has marked the notification as read."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the notification was generated.",
+          "format": "date-time"
+        },
+        "triggeredByEntityId": {
+          "type": "string",
+          "description": "Optional reference to the ID of the entity that triggered this notification (e.g., contractId, invoiceId)."
+        },
+        "triggeredByEntityType": {
+          "type": "string",
+          "description": "Optional type of the entity that triggered this notification (e.g., 'Contract', 'Invoice')."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "type",
+        "message",
+        "targetUrl",
+        "isRead",
+        "createdAt"
+      ]
+    },
+    "CRMLead": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CRMLead",
+      "type": "object",
+      "description": "Manages potential clients (leads) within a basic CRM system, tracking their status and progress through the sales pipeline.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the CRMLead entity."
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Full name of the lead contact person."
+        },
+        "companyName": {
+          "type": "string",
+          "description": "Company name associated with the lead."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the lead for communication.",
+          "format": "email"
+        },
+        "whatsapp": {
+          "type": "string",
+          "description": "WhatsApp contact number for the lead."
+        },
+        "source": {
+          "type": "string",
+          "description": "Where the lead originated from (e.g., 'Website', 'Referral', 'Cold Call')."
+        },
+        "status": {
+          "type": "string",
+          "description": "Overall status of the lead (e.g., 'New', 'Contacted', 'Qualified', 'Proposal Sent', 'Converted', 'Lost')."
+        },
+        "pipelineStage": {
+          "type": "string",
+          "description": "The current stage of the lead in the sales pipeline (e.g., 'Initial Contact', 'Discovery', 'Proposal', 'Negotiation')."
+        },
+        "notes": {
+          "type": "string",
+          "description": "Detailed notes and history of interactions with the lead."
+        },
+        "assignedToUserId": {
+          "type": "string",
+          "description": "Reference to the User entity (Commercial role) responsible for this lead. (Relationship: User 1:N CRMLead)"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the lead record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of the last update to the lead's information.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "fullName",
+        "companyName",
+        "email",
+        "status",
+        "pipelineStage",
+        "assignedToUserId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ScheduleEntry": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ScheduleEntry",
+      "type": "object",
+      "description": "Records appointments, meetings, reminders, and events for internal users, potentially linked to clients or leads.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ScheduleEntry entity."
+        },
+        "title": {
+          "type": "string",
+          "description": "A concise title for the scheduled event or task."
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of the scheduled event."
+        },
+        "type": {
+          "type": "string",
+          "description": "The category of the schedule entry (e.g., 'Meeting', 'Reminder', 'Follow-up', 'Event')."
+        },
+        "startTime": {
+          "type": "string",
+          "description": "The start date and time of the event.",
+          "format": "date-time"
+        },
+        "endTime": {
+          "type": "string",
+          "description": "The end date and time of the event.",
+          "format": "date-time"
+        },
+        "assignedToUserIds": {
+          "type": "array",
+          "description": "References to User entities who are participants or responsible for this schedule entry. (Relationship: User N:N ScheduleEntry)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "relatedClientId": {
+          "type": "string",
+          "description": "Optional reference to a Client entity if the event is related to a specific client. (Relationship: Client 1:N ScheduleEntry)"
+        },
+        "relatedLeadId": {
+          "type": "string",
+          "description": "Optional reference to a CRMLead entity if the event is related to a specific lead. (Relationship: CRMLead 1:N ScheduleEntry)"
+        },
+        "location": {
+          "type": "string",
+          "description": "Physical or virtual location of the event (e.g., 'Google Meet', 'Client Office')."
+        },
+        "isCompleted": {
+          "type": "boolean",
+          "description": "Indicates whether the scheduled event or task has been completed."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the schedule entry was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of the last update to the schedule entry's information.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "description",
+        "type",
+        "startTime",
+        "endTime",
+        "assignedToUserIds",
+        "isCompleted",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "CompanySetting": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CompanySetting",
+      "type": "object",
+      "description": "Stores global configuration settings for the company operating the SaaS, such as company details, branding, and billing preferences.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the CompanySetting entity. Expected to be a fixed ID like 'companyProfile' as there will likely be only one record."
+        },
+        "companyName": {
+          "type": "string",
+          "description": "The official name of the company."
+        },
+        "logoUrl": {
+          "type": "string",
+          "description": "URL to the company logo, typically stored as an Upload entity.",
+          "format": "uri"
+        },
+        "taxId": {
+          "type": "string",
+          "description": "Company's tax identification number (e.g., CNPJ)."
+        },
+        "address": {
+          "type": "string",
+          "description": "Physical address of the company."
+        },
+        "emailSenderName": {
+          "type": "string",
+          "description": "The name used as the sender for automated emails (e.g., 'NexusFlow Pro')."
+        },
+        "emailSenderAddress": {
+          "type": "string",
+          "description": "The email address used as the sender for automated emails.",
+          "format": "email"
+        },
+        "emailSignature": {
+          "type": "string",
+          "description": "Standard email signature to be appended to automated emails."
+        },
+        "billingExternalSetupDetails": {
+          "type": "string",
+          "description": "Placeholder for information about external billing system setup or sensitive keys (e.g., payment gateway API keys, bank account details for PIX/Boletos). *Note: Sensitive data like API keys should not be stored directly in Firestore documents; refer to secure server-side secrets management practices.*"
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the company settings record was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp of the last update to the company settings.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "companyName",
+        "taxId",
+        "address",
+        "emailSenderName",
+        "emailSenderAddress",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores internal user profiles for the SaaS platform, including basic information and the user's role (for application-level logic/UI). Access is path-based: a user can read/write their own profile (matching `request.auth.uid` with `{userId}`). Admins have full access to manage all user profiles."
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Dedicated collection for assigning 'Admin' role permissions. The existence of a document at this path signifies that `userId` has Admin privileges. Used by security rules for 'Existence over Content' DBAC, avoiding `get()` calls on the /users collection for role checks. Only Admins can create or delete documents here.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user assigned to the Admin role, matching `request.auth.uid`."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_financeiro/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Dedicated collection for assigning 'Financeiro' role permissions. The existence of a document at this path signifies that `userId` has Financeiro privileges. Used by security rules for 'Existence over Content' DBAC. Only Admins can create or delete documents here.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user assigned to the Financeiro role, matching `request.auth.uid`."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_comercial/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Dedicated collection for assigning 'Comercial' role permissions. The existence of a document at this path signifies that `userId` has Comercial privileges. Used by security rules for 'Existence over Content' DBAC. Only Admins can create or delete documents here.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user assigned to the Comercial role, matching `request.auth.uid`."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/companySettings/{settingsId}",
+        "definition": {
+          "entityName": "CompanySetting",
+          "schema": {
+            "$ref": "#/backend/entities/CompanySetting"
+          },
+          "description": "Stores global configuration settings for the company operating the SaaS. Expected to contain a single document (e.g., with ID 'companyProfile'). Access is restricted to users with the 'Admin' role.",
+          "params": [
+            {
+              "name": "settingsId",
+              "description": "The unique ID for the company settings document (e.g., 'companyProfile')."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/services/{serviceId}",
+        "definition": {
+          "entityName": "Service",
+          "schema": {
+            "$ref": "#/backend/entities/Service"
+          },
+          "description": "Defines the types of digital solutions offered by the company. Provides a lookup for contract types. Read access for Admin, Financeiro, and Comercial roles. Write access is restricted to the Admin role.",
+          "params": [
+            {
+              "name": "serviceId",
+              "description": "The unique identifier for the Service entity."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/clients/{clientId}",
+        "definition": {
+          "entityName": "Client",
+          "schema": {
+            "$ref": "#/backend/entities/Client"
+          },
+          "description": "Stores comprehensive information about each client. Access is controlled by Admin, Financeiro, and Comercial roles, with specific role-based permissions defining read/write capabilities across all client records.",
+          "params": [
+            {
+              "name": "clientId",
+              "description": "The unique identifier for the Client entity."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/contracts/{contractId}",
+        "definition": {
+          "entityName": "Contract",
+          "schema": {
+            "$ref": "#/backend/entities/Contract"
+          },
+          "description": "Manages details of recurring service agreements with clients. Includes denormalized `clientId`, `clientCompanyName` (from Client), and `serviceName` (from Service) for efficient querying, UI display, and authorization independence. Access is controlled by Admin, Financeiro, and Comercial roles.",
+          "params": [
+            {
+              "name": "contractId",
+              "description": "The unique identifier for the Contract entity."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/invoices/{invoiceId}",
+        "definition": {
+          "entityName": "Invoice",
+          "schema": {
+            "$ref": "#/backend/entities/Invoice"
+          },
+          "description": "Records individual billing statements generated for a contract. Includes denormalized `clientId`, `contractId`, `clientCompanyName`, `contractMonthlyValue`, and `contractStatus` to facilitate security rules and queries for specific clients/contracts without requiring `get()` calls. Access is controlled primarily by Admin and Financeiro roles.",
+          "params": [
+            {
+              "name": "invoiceId",
+              "description": "The unique identifier for the Invoice entity."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/payments/{paymentId}",
+        "definition": {
+          "entityName": "Payment",
+          "schema": {
+            "$ref": "#/backend/entities/Payment"
+          },
+          "description": "Records individual payment transactions received. Includes denormalized `invoiceId`, `contractId`, `clientId`, `invoiceAmount`, and `invoicePaymentStatus` to link payments directly to client/contract context for robust security rules and efficient reporting. Access is controlled primarily by Admin and Financeiro roles.",
+          "params": [
+            {
+              "name": "paymentId",
+              "description": "The unique identifier for the Payment entity."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/uploads/{uploadId}",
+        "definition": {
+          "entityName": "Upload",
+          "schema": {
+            "$ref": "#/backend/entities/Upload"
+          },
+          "description": "Manages metadata for files stored in Firebase Storage (e.g., contract PDFs, proofs of payment). Includes denormalized `uploadedByUserId`, `linkedEntityType`, `linkedEntityId`, `linkedClientName`, and `linkedContractId` for explicit access control and contextual linking to parent entities without requiring `get()` calls. Access is role-based, potentially allowing users who uploaded or are related to the linked entity to access.",
+          "params": [
+            {
+              "name": "uploadId",
+              "description": "The unique identifier for the Upload entity."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/activityLogs/{activityId}",
+        "definition": {
+          "entityName": "ActivityLog",
+          "schema": {
+            "$ref": "#/backend/entities/ActivityLog"
+          },
+          "description": "Records significant actions and changes within the system for audit trails and timelines. Includes denormalized `userId` (the actor), `userFullName`, `entityType`, `entityId`, and `entityName` (contextual name) for clear logging and simplified access rules. Primarily read-only for Admin role, with potential filtered read access for other roles based on the affected entity.",
+          "params": [
+            {
+              "name": "activityId",
+              "description": "The unique identifier for the ActivityLog entry."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/crmLeads/{leadId}",
+        "definition": {
+          "entityName": "CRMLead",
+          "schema": {
+            "$ref": "#/backend/entities/CRMLead"
+          },
+          "description": "Manages potential clients within the basic CRM system. Includes denormalized `assignedToUserId`, `assignedToUserFullName`, and `assignedToUserEmail` to facilitate access control. Access is granted to Admin role and 'Comercial' users who are explicitly assigned (`request.auth.uid == resource.data.assignedToUserId`). Client-side queries are expected to filter by `assignedToUserId` for Comercial users.",
+          "params": [
+            {
+              "name": "leadId",
+              "description": "The unique identifier for the CRMLead entity."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/scheduleEntries/{scheduleEntryId}",
+        "definition": {
+          "entityName": "ScheduleEntry",
+          "schema": {
+            "$ref": "#/backend/entities/ScheduleEntry"
+          },
+          "description": "Records appointments, meetings, and events. Includes denormalized `assignedToUserIds` (an array for multiple participants), `assignedToUserNames`, `relatedClientId`, `relatedClientName`, `relatedLeadId`, and `relatedLeadName` for context and simplified access rules. Access is granted to Admin role or users whose `request.auth.uid` is present in the `assignedToUserIds` array. Client-side queries are expected to filter by `assignedToUserIds` for non-Admin users.",
+          "params": [
+            {
+              "name": "scheduleEntryId",
+              "description": "The unique identifier for the ScheduleEntry entity."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/notifications/{notificationId}",
+        "definition": {
+          "entityName": "Notification",
+          "schema": {
+            "$ref": "#/backend/entities/Notification"
+          },
+          "description": "Stores user-specific system-generated alerts and messages. This subcollection structure enforces path-based ownership, ensuring strict QAPs for 'list' operations: only the user matching `{userId}` in the path (i.e., `request.auth.uid == userId`) can access their notifications. Includes denormalized `userId` and `userFullName` of the recipient for clarity.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user to whom this notification belongs, matching `request.auth.uid`."
+            },
+            {
+              "name": "notificationId",
+              "description": "The unique identifier for the Notification entity."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore structure is designed following the core principles of Authorization Independence, Clarity of Intent, DBAC (Database Access Control), QAPs (Query As Permission), and Invariants. This design aims to create a highly secure, scalable, and debuggable system for NexusFlow Pro.\n\n**Authorization Independence (CRITICAL):**\nTo eliminate hierarchical authorization dependencies and avoid `get()` calls in security rules, crucial authorization context is denormalized directly into the documents. For instance, `invoices` documents will contain `clientId` and `contractId` from their respective parent entities, allowing rules to directly check relationships without needing to fetch the parent `contract` or `client` document. Similarly, `payments` documents will denormalize `invoiceId`, `contractId`, and `clientId`. For user-specific data like notifications, a subcollection (`/users/{userId}/notifications/{notificationId}`) ensures that authorization is inherently tied to the path, making rules simple and atomic.\n\nFor role-based access control (DBAC), instead of relying on a `role` field within the main `/users/{userId}` document (which would necessitate a `get()` call for every role check outside of the user's own profile), dedicated collections like `/roles_admin/{userId}`, `/roles_financeiro/{userId}`, and `/roles_comercial/{userId}` are used. Security rules will check for the *existence* of a document at these paths (e.g., `exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid))`), which is an atomic and efficient operation, fully adhering to the 'Existence over Content' principle for global roles. The `role` field in the `/users/{userId}` document will primarily serve application-level logic and UI display.\n\n**QAPs (Rules are not Filters):**\nThe structure supports secure `list` operations by either using path-based ownership or by denormalizing necessary authorization fields. \n\n1.  **Path-Based Ownership for Private Data:** For truly private and user-specific data, such as `notifications`, a hierarchical path (`/users/{userId}/notifications/{notificationId}`) is employed. This ensures that any `list` query on `/users/$(request.auth.uid)/notifications` will inherently only return documents owned by the authenticated user, satisfying QAPs as the path itself acts as the filter.\n\n2.  **Structural Segregation and Denormalization for Shared Data:** For collections where multiple roles or specific users might have access (e.g., `clients`, `contracts`, `crmLeads`, `scheduleEntries`), the documents themselves contain fields like `assignedToUserId`, `assignedToUserIds` (for `crmLeads` and `scheduleEntries`, respectively), or `clientId`/`contractId` (for `invoices`, `payments`). Security rules for `list` operations on these top-level collections will typically allow authenticated users (`allow list: if request.auth.uid != null;`). However, the client-side queries MUST include explicit `where` clauses (e.g., `where('assignedToUserId', '==', request.auth.uid)` for `crmLeads`, or `where('assignedToUserIds', 'array-contains', request.auth.uid)` for `scheduleEntries`). The `read` and `write` rules will then enforce the actual authorization based on the denormalized fields, ensuring that even if a `list` query *could* retrieve more data, unauthorized individual documents cannot be read or modified.\n\n**Clarity of Intent and DBAC:** The use of dedicated role collections (`/roles_admin`, etc.) clearly expresses the authorization model. All authorization decisions are based on `request.auth.uid` and data explicitly stored or denormalized within the accessed document, making security rules straightforward to write, understand, and debug.\n\n**Invariants:** Timestamps (`createdAt`, `updatedAt`) are consistently present across entities to track data integrity. Ownership and relational integrity are maintained through explicit `userId`, `clientId`, `contractId`, etc., fields, often denormalized where necessary to prevent costly `get()` operations in rules."
+  }
+}

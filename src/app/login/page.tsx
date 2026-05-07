@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -20,26 +19,35 @@ export default function LoginPage() {
   const router = useRouter()
   const { toast } = useToast()
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     
-    try {
-      initiateEmailSignIn(auth, email, password)
-      // O estado de carregamento será limpo pelo listener global de auth no layout
-      // Mas podemos adicionar um timeout curto ou feedback
-      toast({
-        title: "Aguardando autenticação",
-        description: "Verificando suas credenciais no servidor...",
-      })
-    } catch (error: any) {
+    // Passamos um callback de erro para a função non-blocking
+    initiateEmailSignIn(auth, email, password, (error: any) => {
       setIsLoading(false)
+      
+      let errorMessage = "Verifique seus dados e tente novamente."
+      if (error.code === 'auth/invalid-credential') {
+        errorMessage = "E-mail ou senha incorretos."
+      } else if (error.code === 'auth/user-not-found') {
+        errorMessage = "Usuário não encontrado."
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = "Senha incorreta."
+      }
+
       toast({
         variant: "destructive",
         title: "Erro no login",
-        description: error.message || "Verifique seus dados e tente novamente.",
+        description: errorMessage,
       })
-    }
+    })
+
+    // Feedback imediato de que o processo começou
+    toast({
+      title: "Verificando acesso",
+      description: "Assegurando sua conexão com o NexusFlow...",
+    })
   }
 
   return (
@@ -80,7 +88,7 @@ export default function LoginPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password">Senha</Label>
-                <Button variant="link" className="px-0 font-bold text-xs text-accent">Esqueceu a senha?</Button>
+                <Button variant="link" type="button" className="px-0 font-bold text-xs text-accent">Esqueceu a senha?</Button>
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />

@@ -120,7 +120,22 @@ export default function BillingPage() {
     })
   }
 
-  // LÓGICA DE RECORRÊNCIA: Gera faturas para o mês atual para contratos ativos
+  // Função para parsear datas de forma robusta
+  const parseContractDate = (dateStr: string) => {
+    if (!dateStr) return new Date();
+    try {
+      if (dateStr.includes('/')) {
+        const [day, month, year] = dateStr.split('/');
+        return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      }
+      const d = new Date(dateStr);
+      return isNaN(d.getTime()) ? new Date() : d;
+    } catch (e) {
+      return new Date();
+    }
+  }
+
+  // LÓGICA DE RECORRÊNCIA AVANÇADA: Gera faturas retroativas e atuais
   const handleProcessBatch = async () => {
     if (!contracts || !invoices) return
     setIsProcessing(true)
@@ -133,41 +148,57 @@ export default function BillingPage() {
     for (const contract of contracts) {
       if (contract.status !== "Ativo") continue
       
-      // Verifica se já existe fatura deste contrato para o mês atual
-      const hasInvoiceThisMonth = invoices.some(inv => {
-        if (inv.contractId !== contract.id) return false
-        const dueDate = new Date(inv.dueDate)
-        return dueDate.getMonth() === currentMonth && dueDate.getFullYear() === currentYear
-      })
+      const contractStart = parseContractDate(contract.startDate)
+      const startMonth = contractStart.getMonth()
+      const startYear = contractStart.getFullYear()
       
-      if (!hasInvoiceThisMonth) {
-        // Tenta manter o dia de vencimento original do contrato
-        let day = 10;
-        try {
-          if (contract.startDate && contract.startDate.includes('/')) {
-            day = parseInt(contract.startDate.split('/')[0]);
-          } else if (contract.startDate && contract.startDate.includes('-')) {
-            day = new Date(contract.startDate).getDate();
+      // Itera desde o ano/mês de início do contrato até o mês atual
+      let iterDate = new Date(startYear, startMonth, 1)
+      const targetDate = new Date(currentYear, currentMonth, 1)
+
+      while (iterDate <= targetDate) {
+        const iterMonth = iterDate.getMonth()
+        const iterYear = iterDate.getFullYear()
+
+        // Verifica se já existe fatura deste contrato para este mês/ano específico
+        const hasInvoice = invoices.some(inv => {
+          if (inv.contractId !== contract.id) return false
+          const dueDate = new Date(inv.dueDate)
+          return dueDate.getMonth() === iterMonth && dueDate.getFullYear() === iterYear
+        })
+
+        if (!hasInvoice) {
+          // Mantém o dia de vencimento original ou padrão dia 10
+          let day = 10;
+          try {
+            if (contract.startDate && contract.startDate.includes('/')) {
+              day = parseInt(contract.startDate.split('/')[0]);
+            } else if (contract.startDate && contract.startDate.includes('-')) {
+              day = new Date(contract.startDate).getDate();
+            }
+          } catch(e) { day = 10; }
+
+          const dueDate = new Date(iterYear, iterMonth, day)
+          if (isNaN(dueDate.getTime())) dueDate.setDate(10)
+
+          const newInvoice = {
+            contractId: contract.id,
+            clientName: contract.clientName,
+            amount: Number(contract.monthlyValue),
+            issueDate: now.toISOString(),
+            dueDate: dueDate.toISOString(),
+            paymentStatus: "Pendente",
+            paymentMethod: "Manual",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
           }
-        } catch(e) { day = 10; }
-
-        const dueDate = new Date(currentYear, currentMonth, day)
-        if (isNaN(dueDate.getTime())) dueDate.setDate(10)
-
-        const newInvoice = {
-          contractId: contract.id,
-          clientName: contract.clientName,
-          amount: Number(contract.monthlyValue),
-          issueDate: now.toISOString(),
-          dueDate: dueDate.toISOString(),
-          paymentStatus: "Pendente",
-          paymentMethod: "Manual",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
+          
+          addDocumentNonBlocking(collection(db, "invoices"), newInvoice)
+          createdCount++
         }
-        
-        addDocumentNonBlocking(collection(db, "invoices"), newInvoice)
-        createdCount++
+
+        // Avança um mês
+        iterDate.setMonth(iterDate.getMonth() + 1)
       }
     }
 
@@ -176,15 +207,15 @@ export default function BillingPage() {
       if (createdCount > 0) {
         toast({
           title: "Recorrência Processada",
-          description: `${createdCount} novas faturas foram geradas para o período atual.`,
+          description: `${createdCount} novas faturas (incluindo retroativas) foram geradas.`,
         })
       } else {
         toast({
           title: "Tudo em dia",
-          description: "Não foram encontradas faturas pendentes de geração para este mês.",
+          description: "Não foram encontradas faturas pendentes para o período contratual.",
         })
       }
-    }, 1000)
+    }, 1500)
   }
 
   return (
@@ -225,7 +256,7 @@ export default function BillingPage() {
         </Card>
         <Card className="border-border bg-card/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">A Receber (Mês Atual)</CardTitle>
+            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">A Receber (Total Pendente)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black text-accent">

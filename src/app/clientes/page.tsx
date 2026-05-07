@@ -12,12 +12,10 @@ import {
   Edit,
   Loader2,
   CheckCircle2,
-  User,
-  Phone,
   Mail,
-  MapPin,
+  Phone,
   FileText,
-  X
+  MapPin
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -72,20 +70,6 @@ export default function ClientsPage() {
   const [isEditMode, setIsEditMode] = React.useState(false)
   const [isProfileOpen, setIsProfileOpen] = React.useState(false)
 
-  // SOLUÇÃO DEFINITIVA: Forçar a liberação de interações no body/html após fechar modais
-  React.useEffect(() => {
-    if (!isDialogOpen && !isProfileOpen) {
-      // Pequeno timeout para garantir que o Radix UI terminou suas operações de limpeza
-      const timer = setTimeout(() => {
-        document.body.style.pointerEvents = 'auto';
-        document.body.style.overflow = 'auto';
-        document.documentElement.style.pointerEvents = 'auto';
-        document.documentElement.style.overflow = 'auto';
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [isDialogOpen, isProfileOpen]);
-
   const clientsQuery = useMemoFirebase(() => {
     if (!user) return null
     return query(collection(db, "clients"), orderBy("createdAt", "desc"))
@@ -139,33 +123,26 @@ export default function ClientsPage() {
       updatedAt: new Date().toISOString(),
     }
 
-    // FECHAMOS O MODAL PRIMEIRO para liberar a UI de imediato
+    // Fechamos o modal primeiro para evitar que o re-render do Firestore trave a UI
     setIsDialogOpen(false)
 
-    // PROCESSAMOS OS DADOS FORA DO CICLO DE SUBMIT PARA EVITAR TRAVAMENTOS
-    setTimeout(() => {
-      if (isEditMode && selectedClient) {
-        updateDocumentNonBlocking(doc(db, "clients", selectedClient.id), clientData)
-        toast({
-          title: "Cliente atualizado",
-          description: `${clientData.fullName} foi atualizado com sucesso.`,
-        })
-      } else {
-        const newClient = {
-          ...clientData,
-          createdAt: new Date().toISOString(),
-        }
-        addDocumentNonBlocking(collection(db, "clients"), newClient)
-        toast({
-          title: "Cliente cadastrado",
-          description: `${clientData.fullName} foi adicionado com sucesso.`,
-        })
+    if (isEditMode && selectedClient) {
+      updateDocumentNonBlocking(doc(db, "clients", selectedClient.id), clientData)
+      toast({
+        title: "Cliente atualizado",
+        description: `${clientData.fullName} foi atualizado com sucesso.`,
+      })
+    } else {
+      const newClient = {
+        ...clientData,
+        createdAt: new Date().toISOString(),
       }
-      
-      // Limpeza de estados somente após a transição
-      setSelectedClient(null)
-      setIsEditMode(false)
-    }, 50);
+      addDocumentNonBlocking(collection(db, "clients"), newClient)
+      toast({
+        title: "Cliente cadastrado",
+        description: `${clientData.fullName} foi adicionado com sucesso.`,
+      })
+    }
   }
 
   const handleDeleteClient = (id: string, name: string) => {
@@ -300,18 +277,7 @@ export default function ClientsPage() {
       </Card>
 
       {/* Diálogo de Cadastro/Edição */}
-      <Dialog 
-        open={isDialogOpen} 
-        onOpenChange={(open) => {
-          setIsDialogOpen(open)
-          if (!open) {
-            setTimeout(() => {
-              setSelectedClient(null)
-              setIsEditMode(false)
-            }, 300)
-          }
-        }}
-      >
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="sm:max-w-[600px] bg-card border-border">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
@@ -378,17 +344,7 @@ export default function ClientsPage() {
       </Dialog>
 
       {/* Modal de Perfil do Cliente */}
-      <Dialog 
-        open={isProfileOpen} 
-        onOpenChange={(open) => {
-          setIsProfileOpen(open)
-          if (!open) {
-            setTimeout(() => {
-              setSelectedClient(null)
-            }, 300)
-          }
-        }}
-      >
+      <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
         <DialogContent className="sm:max-w-[700px] bg-card border-border max-h-[90vh] overflow-y-auto">
           {selectedClient && (
             <>

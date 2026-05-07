@@ -121,28 +121,31 @@ export default function ContractsPage() {
     reader.readAsDataURL(file)
   }
 
+  const parseStartDate = (dateStr: string) => {
+    let date = new Date();
+    try {
+      if (dateStr && dateStr.includes('/')) {
+        const [day, month, year] = dateStr.split('/');
+        // Mês em JS é 0-indexed
+        date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+      } else if (dateStr && dateStr.includes('-')) {
+        date = new Date(dateStr);
+      }
+    } catch (e) {
+      return new Date();
+    }
+    return isNaN(date.getTime()) ? new Date() : date;
+  }
+
   const handleSaveContract = async () => {
     if (!extractedData) return
     setIsSaving(true)
 
     const now = new Date();
+    const startDate = parseStartDate(extractedData.startDate);
     
-    // Tenta usar a data do contrato para o vencimento da primeira fatura
-    let dueDate = new Date();
-    try {
-      if (extractedData.startDate && extractedData.startDate.includes('/')) {
-        const [day, month, year] = extractedData.startDate.split('/');
-        dueDate = new Date(parseInt(year), parseInt(month), parseInt(day));
-      } else if (extractedData.startDate && extractedData.startDate.includes('-')) {
-        dueDate = new Date(extractedData.startDate);
-      }
-    } catch (e) {
-      dueDate = new Date();
-    }
-    
-    if (isNaN(dueDate.getTime())) {
-      dueDate = new Date();
-    }
+    // Vencimento da primeira fatura: 30 dias após o início
+    let dueDate = new Date(startDate);
     dueDate.setDate(dueDate.getDate() + 30);
 
     const newContract = {
@@ -173,7 +176,7 @@ export default function ContractsPage() {
           updatedAt: now.toISOString()
         };
 
-        await addDocumentNonBlocking(collection(db, "invoices"), firstInvoice);
+        addDocumentNonBlocking(collection(db, "invoices"), firstInvoice);
 
         setIsSaving(false)
         setIsCreateOpen(false)
@@ -204,6 +207,11 @@ export default function ContractsPage() {
       updatedAt: new Date().toISOString()
     }
 
+    // Calcula nova data de vencimento baseada na data de início atualizada
+    const startDate = parseStartDate(updatedData.startDate);
+    let newDueDate = new Date(startDate);
+    newDueDate.setDate(newDueDate.getDate() + 30);
+
     // 1. Atualiza o documento do contrato
     updateDocumentNonBlocking(doc(db, "contracts", id), updatedData)
     
@@ -219,7 +227,8 @@ export default function ContractsPage() {
       querySnapshot.forEach((invoiceDoc) => {
         updateDocumentNonBlocking(doc(db, "invoices", invoiceDoc.id), {
           amount: updatedData.monthlyValue,
-          clientName: updatedData.clientName, // Atualiza nome se mudou
+          clientName: updatedData.clientName,
+          dueDate: newDueDate.toISOString(), // Sincroniza a data de vencimento
           updatedAt: new Date().toISOString()
         });
       });
@@ -232,7 +241,7 @@ export default function ContractsPage() {
     setIsDetailsOpen(false)
     toast({
       title: "Contrato Atualizado",
-      description: "As alterações e faturas pendentes foram sincronizadas.",
+      description: "As alterações, valores e vencimentos foram sincronizados.",
     })
   }
 

@@ -124,16 +124,20 @@ export default function ContractsPage() {
         })
       } finally {
         setIsUploading(false)
-        event.target.value = ""
+        if (event.target) event.target.value = ""
       }
     }
     
     reader.readAsDataURL(file)
   }
 
-  const handleSaveContract = () => {
+  const handleSaveContract = async () => {
     if (!extractedData) return
     setIsSaving(true)
+
+    const now = new Date();
+    const dueDate = new Date();
+    dueDate.setDate(now.getDate() + 30);
 
     const newContract = {
       clientName: extractedData.clientName,
@@ -143,28 +147,45 @@ export default function ContractsPage() {
       paymentTerms: extractedData.paymentTerms,
       status: "Ativo",
       score: Math.floor(Math.random() * 20) + 80,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString()
     }
 
-    addDocumentNonBlocking(collection(db, "contracts"), newContract)
-      .then(() => {
+    try {
+      const contractRef = await addDocumentNonBlocking(collection(db, "contracts"), newContract);
+      
+      if (contractRef) {
+        // Automação: Criar primeira fatura para daqui a 30 dias
+        const firstInvoice = {
+          contractId: contractRef.id,
+          clientName: newContract.clientName,
+          amount: newContract.monthlyValue,
+          issueDate: now.toISOString(),
+          dueDate: dueDate.toISOString(),
+          paymentStatus: "Pendente",
+          paymentMethod: "Manual",
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString()
+        };
+
+        addDocumentNonBlocking(collection(db, "invoices"), firstInvoice);
+
         setIsSaving(false)
         setIsCreateOpen(false)
         setExtractedData(null)
         toast({
           title: "Contrato Registrado",
-          description: `O contrato para ${newContract.clientName} foi salvo.`,
+          description: `O contrato para ${newContract.clientName} foi salvo e a primeira fatura foi agendada para daqui a 30 dias.`,
         })
+      }
+    } catch (err) {
+      setIsSaving(false)
+      toast({
+        variant: "destructive",
+        title: "Erro ao salvar",
+        description: "Não foi possível registrar o contrato.",
       })
-      .catch((err) => {
-        setIsSaving(false)
-        toast({
-          variant: "destructive",
-          title: "Erro ao salvar",
-          description: "Não foi possível registrar o contrato.",
-        })
-      })
+    }
   }
 
   const handleUpdateContract = () => {

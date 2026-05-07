@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -9,7 +10,10 @@ import {
   Clock, 
   AlertCircle,
   TrendingUp,
-  Filter
+  Filter,
+  Loader2,
+  MoreVertical,
+  Trash2
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -24,27 +28,89 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { 
+  useCollection, 
+  useFirestore, 
+  useMemoFirebase, 
+  useUser,
+  deleteDocumentNonBlocking
+} from "@/firebase"
+import { collection, query, orderBy, doc } from "firebase/firestore"
+import { cn } from "@/lib/utils"
+import { useToast } from "@/hooks/use-toast"
 
 export default function BillingPage() {
-  const invoices = [
-    { id: "INV-2024-001", client: "Silva Tech", value: "R$ 1.200,00", due: "15/06/2024", status: "Pago", method: "Pix" },
-    { id: "INV-2024-002", client: "Global Logística", value: "R$ 2.500,00", due: "01/06/2024", status: "Atrasado", method: "Boleto" },
-    { id: "INV-2024-003", client: "Market Prime", value: "R$ 450,00", due: "20/06/2024", status: "Pendente", method: "Cartão" },
-    { id: "INV-2024-004", client: "Eco Vida Solar", value: "R$ 3.100,00", due: "10/06/2024", status: "Pago", method: "Pix" },
-  ]
+  const { toast } = useToast()
+  const db = useFirestore()
+  const { user } = useUser()
+  const [searchTerm, setSearchTerm] = React.useState("")
+
+  // Realtime queries for invoices and contracts
+  const invoicesQuery = useMemoFirebase(() => {
+    if (!user) return null
+    return query(collection(db, "invoices"), orderBy("dueDate", "asc"))
+  }, [db, user])
+
+  const contractsQuery = useMemoFirebase(() => {
+    if (!user) return null
+    return collection(db, "contracts")
+  }, [db, user])
+
+  const { data: invoices, isLoading: loadingInvoices } = useCollection(invoicesQuery)
+  const { data: contracts, isLoading: loadingContracts } = useCollection(contractsQuery)
+
+  const filteredInvoices = React.useMemo(() => {
+    if (!invoices) return []
+    return invoices.filter(inv => 
+      inv.clientName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      inv.id?.toLowerCase().includes(searchTerm.toLowerCase())
+    )
+  }, [invoices, searchTerm])
+
+  // Stats calculation
+  const stats = React.useMemo(() => {
+    if (!invoices || !contracts) return { mrr: 0, pending: 0, delinquency: 0 }
+
+    const mrr = contracts.reduce((acc, curr) => acc + (Number(curr.monthlyValue) || 0), 0)
+    const pending = invoices
+      .filter(inv => inv.paymentStatus === "Pendente")
+      .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
+    
+    // Simular inadimplência baseada em faturas vencidas (simplificado)
+    const today = new Date()
+    const delinquency = invoices
+      .filter(inv => inv.paymentStatus !== "Pago" && new Date(inv.dueDate) < today)
+      .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
+
+    return { mrr, pending, delinquency }
+  }, [invoices, contracts])
+
+  const handleDeleteInvoice = (id: string) => {
+    deleteDocumentNonBlocking(doc(db, "invoices", id))
+    toast({
+      title: "Fatura removida",
+      description: "O registro financeiro foi excluído.",
+    })
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between px-1">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Faturamento & Financeiro</h1>
-          <p className="text-muted-foreground">Controle de receitas recorrentes e gestão de inadimplência.</p>
+          <p className="text-muted-foreground">Controle de receitas recorrentes e gestão de faturas.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="border-border">
-            <Download className="mr-2 h-4 w-4" /> Exportar Relatórios
+          <Button variant="outline" className="border-border hidden sm:flex">
+            <Download className="mr-2 h-4 w-4" /> Exportar
           </Button>
-          <Button className="bg-primary hover:bg-primary/90">
+          <Button className="bg-primary hover:bg-primary/90 w-full sm:w-auto">
              Processar Lote
           </Button>
         </div>
@@ -53,34 +119,40 @@ export default function BillingPage() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card className="border-border bg-card/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Receita Recorrente (MRR)</CardTitle>
+            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Receita Recorrente (MRR)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black">R$ 45.230,00</div>
+            <div className="text-2xl font-black">
+              {loadingContracts ? "..." : `R$ ${stats.mrr.toLocaleString('pt-BR')}`}
+            </div>
             <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-emerald-500">
-              <TrendingUp className="h-3 w-3" /> +12.4% ESTE MÊS
+              <TrendingUp className="h-3 w-3" /> CALCULADO EM TEMPO REAL
             </div>
           </CardContent>
         </Card>
         <Card className="border-border bg-card/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Total Pendente</CardTitle>
+            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Total Pendente</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-accent">R$ 5.480,00</div>
+            <div className="text-2xl font-black text-accent">
+              {loadingInvoices ? "..." : `R$ ${stats.pending.toLocaleString('pt-BR')}`}
+            </div>
             <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-muted-foreground">
-              <Clock className="h-3 w-3" /> 12 FATURAS EM ABERTO
+              <Clock className="h-3 w-3" /> {invoices?.filter(i => i.paymentStatus === "Pendente").length || 0} FATURAS EM ABERTO
             </div>
           </CardContent>
         </Card>
         <Card className="border-border bg-card/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Inadimplência</CardTitle>
+            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Inadimplência</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-destructive">R$ 3.120,00</div>
+            <div className="text-2xl font-black text-destructive">
+              {loadingInvoices ? "..." : `R$ ${stats.delinquency.toLocaleString('pt-BR')}`}
+            </div>
             <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-destructive">
-              <AlertCircle className="h-3 w-3" /> 5.2% DA RECEITA TOTAL
+              <AlertCircle className="h-3 w-3" /> VENCIDAS E NÃO PAGAS
             </div>
           </CardContent>
         </Card>
@@ -89,68 +161,96 @@ export default function BillingPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por cliente ou fatura..." className="pl-10 bg-card/50 border-border" />
+          <input 
+            placeholder="Buscar por cliente ou fatura..." 
+            className="w-full h-10 pl-10 pr-4 rounded-md bg-card/50 border border-border focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
         </div>
         <Button variant="outline" className="border-border">
-          <Filter className="mr-2 h-4 w-4" /> Filtros Avançados
+          <Filter className="mr-2 h-4 w-4" /> Filtros
         </Button>
       </div>
 
-      <Card className="border-border bg-card/50">
+      <Card className="border-border bg-card/50 overflow-hidden">
         <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow>
-                <TableHead>Nº Fatura</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Valor</TableHead>
-                <TableHead>Vencimento</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Método</TableHead>
-                <TableHead className="text-right">Ação</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Fatura</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Cliente</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Valor</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Vencimento</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest">Status</TableHead>
+                <TableHead className="text-[10px] font-black uppercase tracking-widest text-right">Ação</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {invoices.map((inv) => (
-                <TableRow key={inv.id} className="hover:bg-muted/20 transition-colors">
-                  <TableCell className="font-mono text-xs font-bold text-primary">{inv.id}</TableCell>
-                  <TableCell className="font-semibold">{inv.client}</TableCell>
-                  <TableCell className="font-bold">{inv.value}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{inv.due}</TableCell>
-                  <TableCell>
-                    <Badge 
-                      variant="outline" 
-                      className={cn(
-                        "font-black text-[10px] tracking-widest px-2 py-0.5",
-                        inv.status === "Pago" ? "border-emerald-500/30 text-emerald-500" :
-                        inv.status === "Atrasado" ? "border-destructive/30 text-destructive" :
-                        "border-accent/30 text-accent"
-                      )}
-                    >
-                      {inv.status.toUpperCase()}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2 text-xs font-medium">
-                      <CreditCard className="h-3 w-3 text-muted-foreground" />
-                      {inv.method}
+              {loadingInvoices ? (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-32 text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      <span className="text-muted-foreground font-medium">Sincronizando faturas...</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" className="h-8 px-2 text-xs font-bold text-accent">
-                      DETALHES
-                    </Button>
+                </TableRow>
+              ) : filteredInvoices.length > 0 ? (
+                filteredInvoices.map((inv) => (
+                  <TableRow key={inv.id} className="hover:bg-muted/20 transition-colors">
+                    <TableCell className="font-mono text-[10px] font-bold text-primary">#{inv.id.slice(-6).toUpperCase()}</TableCell>
+                    <TableCell className="font-semibold text-sm">{inv.clientName || "N/A"}</TableCell>
+                    <TableCell className="font-bold text-sm">R$ {Number(inv.amount).toLocaleString('pt-BR')}</TableCell>
+                    <TableCell className="text-muted-foreground text-xs">
+                      {new Date(inv.dueDate).toLocaleDateString('pt-BR')}
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant="outline" 
+                        className={cn(
+                          "font-black text-[9px] tracking-widest px-2 py-0.5",
+                          inv.paymentStatus === "Pago" ? "border-emerald-500/30 text-emerald-500 bg-emerald-500/5" :
+                          new Date(inv.dueDate) < new Date() ? "border-destructive/30 text-destructive bg-destructive/5" :
+                          "border-accent/30 text-accent bg-accent/5"
+                        )}
+                      >
+                        {inv.paymentStatus === "Pendente" && new Date(inv.dueDate) < new Date() ? "ATRASADO" : inv.paymentStatus.toUpperCase()}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="bg-popover border-border">
+                          <DropdownMenuItem className="text-[10px] font-bold uppercase cursor-pointer">
+                            Marcar como Pago
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            className="text-[10px] font-bold uppercase cursor-pointer text-destructive focus:text-destructive"
+                            onClick={() => handleDeleteInvoice(inv.id)}
+                          >
+                            <Trash2 className="mr-2 h-3 w-3" /> Excluir Fatura
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={6} className="h-24 text-center text-muted-foreground text-sm">
+                    Nenhuma fatura encontrada.
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </CardContent>
       </Card>
     </div>
   )
-}
-
-function cn(...classes: any[]) {
-  return classes.filter(Boolean).join(" ")
 }

@@ -15,7 +15,9 @@ import {
   Trash2,
   Info,
   BadgeAlert,
-  Clock
+  Clock,
+  Edit2,
+  X
 } from "lucide-react"
 import { extractContractDetails, AIContractDetailExtractorOutput } from "@/ai/flows/ai-contract-detail-extractor"
 
@@ -33,6 +35,7 @@ import {
   DialogFooter
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 import { 
   useCollection, 
@@ -40,6 +43,7 @@ import {
   useMemoFirebase, 
   useUser,
   addDocumentNonBlocking,
+  updateDocumentNonBlocking,
   deleteDocumentNonBlocking
 } from "@/firebase"
 import { collection, query, orderBy, doc } from "firebase/firestore"
@@ -54,9 +58,10 @@ export default function ContractsPage() {
   const [extractedData, setExtractedData] = React.useState<AIContractDetailExtractorOutput | null>(null)
   const [isCreateOpen, setIsCreateOpen] = React.useState(false)
   
-  // Estado para visualização de detalhes
+  // Estado para visualização e edição
   const [selectedContract, setSelectedContract] = React.useState<any>(null)
   const [isDetailsOpen, setIsDetailsOpen] = React.useState(false)
+  const [isEditing, setIsEditing] = React.useState(false)
 
   const contractsQuery = useMemoFirebase(() => {
     if (!user) return null
@@ -133,7 +138,7 @@ export default function ContractsPage() {
     const newContract = {
       clientName: extractedData.clientName,
       serviceType: extractedData.serviceType,
-      monthlyValue: extractedData.monthlyValue,
+      monthlyValue: Number(extractedData.monthlyValue),
       startDate: extractedData.startDate,
       paymentTerms: extractedData.paymentTerms,
       status: "Ativo",
@@ -162,6 +167,27 @@ export default function ContractsPage() {
       })
   }
 
+  const handleUpdateContract = () => {
+    if (!selectedContract) return
+    setIsSaving(true)
+
+    const { id, ...dataToUpdate } = selectedContract
+    const updatedData = {
+      ...dataToUpdate,
+      updatedAt: new Date().toISOString()
+    }
+
+    updateDocumentNonBlocking(doc(db, "contracts", id), updatedData)
+    
+    setIsSaving(false)
+    setIsEditing(false)
+    setIsDetailsOpen(false)
+    toast({
+      title: "Contrato Atualizado",
+      description: "As alterações foram salvas com sucesso.",
+    })
+  }
+
   const handleDeleteContract = (id: string) => {
     deleteDocumentNonBlocking(doc(db, "contracts", id))
     toast({
@@ -173,6 +199,7 @@ export default function ContractsPage() {
   const openDetails = (contract: any) => {
     setSelectedContract(contract)
     setIsDetailsOpen(true)
+    setIsEditing(false)
   }
 
   return (
@@ -281,7 +308,7 @@ export default function ContractsPage() {
                   variant="ghost" 
                   size="icon" 
                   className="absolute right-2 top-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
-                  onClick={() => handleDeleteContract(contract.id)}
+                  onClick={(e) => { e.stopPropagation(); handleDeleteContract(contract.id); }}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -360,90 +387,160 @@ export default function ContractsPage() {
         )}
       </div>
 
-      {/* Modal de Detalhes do Contrato */}
-      <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="sm:max-w-[600px] bg-card border-border">
+      {/* Modal de Detalhes e Edição do Contrato */}
+      <Dialog open={isDetailsOpen} onOpenChange={(v) => { if(!v) setIsEditing(false); setIsDetailsOpen(v); }}>
+        <DialogContent className="sm:max-w-[600px] bg-card border-border max-h-[90vh] overflow-y-auto">
           {selectedContract && (
             <>
               <DialogHeader>
                 <div className="flex items-center justify-between pr-8">
                   <div className="space-y-1">
-                    <DialogTitle className="text-2xl font-bold">{selectedContract.clientName}</DialogTitle>
+                    <DialogTitle className="text-2xl font-bold">
+                      {isEditing ? "Editar Contrato" : selectedContract.clientName}
+                    </DialogTitle>
                     <DialogDescription className="font-medium text-primary">
-                      {selectedContract.serviceType}
+                      {isEditing ? "Altere os campos abaixo para atualizar o contrato." : selectedContract.serviceType}
                     </DialogDescription>
                   </div>
-                  <Badge 
-                    className={cn(
-                      "font-black tracking-widest px-3 py-1",
-                      selectedContract.status === "Ativo" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-destructive/10 text-destructive border-destructive/20"
-                    )}
-                  >
-                    {selectedContract.status.toUpperCase()}
-                  </Badge>
+                  {!isEditing && (
+                    <Badge 
+                      className={cn(
+                        "font-black tracking-widest px-3 py-1",
+                        selectedContract.status === "Ativo" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-destructive/10 text-destructive border-destructive/20"
+                      )}
+                    >
+                      {selectedContract.status.toUpperCase()}
+                    </Badge>
+                  )}
                 </div>
               </DialogHeader>
               
               <div className="grid gap-6 py-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2 p-4 rounded-xl bg-muted/20 border border-border/50">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <CreditCard className="h-4 w-4" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest">Valor Mensal</span>
-                    </div>
-                    <p className="text-xl font-black">R$ {Number(selectedContract.monthlyValue).toLocaleString('pt-BR')}</p>
-                  </div>
-                  <div className="space-y-2 p-4 rounded-xl bg-muted/20 border border-border/50">
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <CalendarDays className="h-4 w-4" />
-                      <span className="text-[10px] font-bold uppercase tracking-widest">Início</span>
-                    </div>
-                    <p className="text-xl font-black">{selectedContract.startDate}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                   <div className="flex items-center gap-2">
-                     <Info className="h-4 w-4 text-accent" />
-                     <h4 className="text-xs font-black uppercase tracking-widest text-foreground">Termos e Condições</h4>
-                   </div>
-                   <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
-                      <p className="text-sm text-muted-foreground leading-relaxed">
-                        {selectedContract.paymentTerms || "Nenhum termo específico detalhado para este contrato."}
-                      </p>
-                   </div>
-                </div>
-
-                <div className="space-y-3">
-                   <div className="flex items-center gap-2">
-                     <Clock className="h-4 w-4 text-accent" />
-                     <h4 className="text-xs font-black uppercase tracking-widest text-foreground">Informações Adicionais</h4>
-                   </div>
-                   <div className="grid grid-cols-2 gap-4 text-xs">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-muted-foreground font-medium">Registrado em:</span>
-                        <span className="font-bold">{new Date(selectedContract.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+                {isEditing ? (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Nome do Cliente</Label>
+                        <Input 
+                          value={selectedContract.clientName} 
+                          onChange={(e) => setSelectedContract({...selectedContract, clientName: e.target.value})}
+                          className="bg-muted/30"
+                        />
                       </div>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-muted-foreground font-medium">Saúde do Contrato:</span>
-                        <div className="flex items-center gap-2">
-                          <span className={cn("font-bold", selectedContract.score > 80 ? "text-emerald-500" : "text-destructive")}>
-                            {selectedContract.score}%
-                          </span>
-                          <BadgeAlert className={cn("h-3 w-3", selectedContract.score > 80 ? "text-emerald-500" : "text-destructive")} />
+                      <div className="space-y-2">
+                        <Label>Tipo de Serviço</Label>
+                        <Input 
+                          value={selectedContract.serviceType} 
+                          onChange={(e) => setSelectedContract({...selectedContract, serviceType: e.target.value})}
+                          className="bg-muted/30"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Valor Mensal (R$)</Label>
+                        <Input 
+                          type="number"
+                          value={selectedContract.monthlyValue} 
+                          onChange={(e) => setSelectedContract({...selectedContract, monthlyValue: Number(e.target.value)})}
+                          className="bg-muted/30"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Data de Início</Label>
+                        <Input 
+                          value={selectedContract.startDate} 
+                          onChange={(e) => setSelectedContract({...selectedContract, startDate: e.target.value})}
+                          className="bg-muted/30"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Termos de Pagamento</Label>
+                      <Textarea 
+                        value={selectedContract.paymentTerms} 
+                        onChange={(e) => setSelectedContract({...selectedContract, paymentTerms: e.target.value})}
+                        className="bg-muted/30 min-h-[100px]"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2 p-4 rounded-xl bg-muted/20 border border-border/50">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <CreditCard className="h-4 w-4" />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">Valor Mensal</span>
                         </div>
+                        <p className="text-xl font-black">R$ {Number(selectedContract.monthlyValue).toLocaleString('pt-BR')}</p>
                       </div>
-                   </div>
-                </div>
+                      <div className="space-y-2 p-4 rounded-xl bg-muted/20 border border-border/50">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <CalendarDays className="h-4 w-4" />
+                          <span className="text-[10px] font-bold uppercase tracking-widest">Início</span>
+                        </div>
+                        <p className="text-xl font-black">{selectedContract.startDate}</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                       <div className="flex items-center gap-2">
+                         <Info className="h-4 w-4 text-accent" />
+                         <h4 className="text-xs font-black uppercase tracking-widest text-foreground">Termos e Condições</h4>
+                       </div>
+                       <div className="p-4 rounded-xl bg-muted/30 border border-border/50">
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            {selectedContract.paymentTerms || "Nenhum termo específico detalhado para este contrato."}
+                          </p>
+                       </div>
+                    </div>
+
+                    <div className="space-y-3">
+                       <div className="flex items-center gap-2">
+                         <Clock className="h-4 w-4 text-accent" />
+                         <h4 className="text-xs font-black uppercase tracking-widest text-foreground">Informações Adicionais</h4>
+                       </div>
+                       <div className="grid grid-cols-2 gap-4 text-xs">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-muted-foreground font-medium">Registrado em:</span>
+                            <span className="font-bold">{new Date(selectedContract.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</span>
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-muted-foreground font-medium">Saúde do Contrato:</span>
+                            <div className="flex items-center gap-2">
+                              <span className={cn("font-bold", selectedContract.score > 80 ? "text-emerald-500" : "text-destructive")}>
+                                {selectedContract.score}%
+                              </span>
+                              <BadgeAlert className={cn("h-3 w-3", selectedContract.score > 80 ? "text-emerald-500" : "text-destructive")} />
+                            </div>
+                          </div>
+                       </div>
+                    </div>
+                  </>
+                )}
               </div>
 
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setIsDetailsOpen(false)} className="w-full sm:w-auto">
-                  Fechar
-                </Button>
-                <Button className="bg-primary w-full sm:w-auto">
-                  Editar Contrato
-                </Button>
+              <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                {isEditing ? (
+                  <>
+                    <Button variant="outline" onClick={() => setIsEditing(false)} className="w-full sm:w-auto">
+                      <X className="mr-2 h-4 w-4" /> Descartar
+                    </Button>
+                    <Button onClick={handleUpdateContract} className="bg-primary w-full sm:w-auto" disabled={isSaving}>
+                      {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                      Salvar Alterações
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="outline" onClick={() => setIsDetailsOpen(false)} className="w-full sm:w-auto">
+                      Fechar
+                    </Button>
+                    <Button onClick={() => setIsEditing(true)} className="bg-primary w-full sm:w-auto">
+                      <Edit2 className="mr-2 h-4 w-4" /> Editar Contrato
+                    </Button>
+                  </>
+                )}
               </DialogFooter>
             </>
           )}

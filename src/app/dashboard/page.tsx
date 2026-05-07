@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -19,16 +20,14 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer, 
-  LineChart, 
-  Line,
-  Cell,
-  PieChart,
-  Pie
+  PieChart, 
+  Pie,
+  Cell
 } from "recharts"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { cn } from "@/lib/utils"
 
 const stats = [
   {
@@ -88,13 +87,13 @@ export default function DashboardPage() {
   if (!mounted) return null
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 overflow-x-hidden">
       <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Visão Geral</h1>
-        <p className="text-muted-foreground">Bem-vindo ao NexusFlow. Aqui está o resumo operacional da sua empresa.</p>
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Visão Geral</h1>
+        <p className="text-sm md:text-base text-muted-foreground text-balance">Bem-vindo ao NexusFlow. Aqui está o resumo operacional da sua empresa.</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <Card key={stat.title} className="card-hover border-border bg-card/50">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -104,8 +103,8 @@ export default function DashboardPage() {
               <stat.icon className={cn("h-4 w-4", stat.color)} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+              <div className="text-xl md:text-2xl font-bold">{stat.value}</div>
+              <p className="text-[10px] md:text-xs text-muted-foreground flex items-center gap-1 mt-1">
                 <span className={cn(
                   "flex items-center font-semibold",
                   stat.trend === "up" ? "text-emerald-500" : "text-destructive"
@@ -120,13 +119,13 @@ export default function DashboardPage() {
         ))}
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-7">
         <Card className="lg:col-span-4 border-border bg-card/50">
           <CardHeader>
-            <CardTitle>Crescimento Financeiro</CardTitle>
+            <CardTitle className="text-lg md:text-xl">Crescimento Financeiro</CardTitle>
             <CardDescription>Receita mensal recorrente (MRR) nos últimos 6 meses.</CardDescription>
           </CardHeader>
-          <CardContent className="h-[350px]">
+          <CardContent className="h-[250px] md:h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={revenueData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
@@ -134,48 +133,49 @@ export default function DashboardPage() {
                   dataKey="month" 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} 
+                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }} 
                 />
                 <YAxis 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }}
+                  tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 10 }}
                   tickFormatter={(value) => `R$ ${value / 1000}k`}
+                  width={40}
                 />
                 <Tooltip 
                   cursor={{ fill: "hsl(var(--muted) / 0.5)" }}
                   content={({ active, payload }) => {
                     if (active && payload && payload.length) {
                       return (
-                        <div className="bg-popover border border-border p-3 rounded-lg shadow-xl">
-                          <p className="text-sm font-bold text-foreground">{payload[0].payload.month}</p>
-                          <p className="text-sm text-primary font-medium">R$ {payload[0].value?.toLocaleString()}</p>
+                        <div className="bg-popover border border-border p-2 md:p-3 rounded-lg shadow-xl">
+                          <p className="text-xs md:text-sm font-bold text-foreground">{payload[0].payload.month}</p>
+                          <p className="text-xs md:text-sm text-primary font-medium">R$ {payload[0].value?.toLocaleString()}</p>
                         </div>
                       )
                     }
                     return null
                   }}
                 />
-                <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={40} />
+                <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={32} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-3 border-border bg-card/50">
+        <Card className="lg:col-span-3 border-border bg-card/50 relative">
           <CardHeader>
-            <CardTitle>Distribuição de Serviços</CardTitle>
+            <CardTitle className="text-lg md:text-xl">Distribuição de Serviços</CardTitle>
             <CardDescription>Baseado em contratos ativos por categoria.</CardDescription>
           </CardHeader>
-          <CardContent className="h-[350px] flex items-center justify-center">
+          <CardContent className="h-[250px] md:h-[300px] flex items-center justify-center">
              <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={serviceData}
                   cx="50%"
                   cy="50%"
-                  innerRadius={80}
-                  outerRadius={110}
+                  innerRadius={60}
+                  outerRadius={90}
                   paddingAngle={5}
                   dataKey="value"
                 >
@@ -186,49 +186,48 @@ export default function DashboardPage() {
                 <Tooltip />
               </PieChart>
             </ResponsiveContainer>
-            <div className="absolute flex flex-col items-center justify-center">
-              <span className="text-3xl font-bold">128</span>
-              <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total</span>
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-16">
+              <span className="text-xl md:text-2xl font-bold">128</span>
+              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Total</span>
             </div>
           </CardContent>
-          <div className="p-6 pt-0 grid grid-cols-2 gap-4">
+          <div className="p-4 md:p-6 pt-0 grid grid-cols-2 gap-2 md:gap-4">
             {serviceData.map((service) => (
               <div key={service.name} className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full" style={{ backgroundColor: service.color }} />
-                <span className="text-xs font-medium">{service.name}</span>
-                <span className="text-xs text-muted-foreground ml-auto">{service.value}%</span>
+                <div className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: service.color }} />
+                <span className="text-[10px] md:text-xs font-medium truncate">{service.name}</span>
+                <span className="text-[10px] md:text-xs text-muted-foreground ml-auto">{service.value}%</span>
               </div>
             ))}
           </div>
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
         <Card className="border-border bg-card/50">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>Últimos Clientes</CardTitle>
-              <CardDescription>Empresas recém adicionadas à plataforma.</CardDescription>
+              <CardTitle className="text-lg md:text-xl">Últimos Clientes</CardTitle>
+              <CardDescription>Adicionados recentemente.</CardDescription>
             </div>
-            <Badge variant="outline" className="text-[10px] font-bold">VER TODOS</Badge>
+            <Badge variant="outline" className="text-[10px] font-bold shrink-0">VER TODOS</Badge>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {[
-                { name: "Tech Solutions Inc", segment: "Sistemas de Gestão", date: "Há 2 horas" },
-                { name: "Padaria Bella Massa", segment: "App de Delivery", date: "Há 5 horas" },
-                { name: "Eco Vida Solar", segment: "Web & Branding", date: "Há 1 dia" },
-                { name: "Advocacia Lemos", segment: "Sistema Jurídico", date: "Há 2 dias" },
+                { name: "Tech Solutions Inc", segment: "Sistemas", date: "2h atrás" },
+                { name: "Bella Massa", segment: "App Delivery", date: "5h atrás" },
+                { name: "Eco Vida Solar", segment: "Branding", date: "1 dia atrás" },
               ].map((client, i) => (
-                <div key={i} className="flex items-center gap-4 p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
+                <div key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0">
                     {client.name.charAt(0)}
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold">{client.name}</p>
-                    <p className="text-xs text-muted-foreground">{client.segment}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{client.name}</p>
+                    <p className="text-[10px] md:text-xs text-muted-foreground truncate">{client.segment}</p>
                   </div>
-                  <div className="text-right">
+                  <div className="text-right shrink-0">
                     <p className="text-[10px] font-bold text-muted-foreground uppercase">{client.date}</p>
                   </div>
                 </div>
@@ -240,27 +239,26 @@ export default function DashboardPage() {
         <Card className="border-border bg-card/50">
           <CardHeader className="flex flex-row items-center justify-between">
              <div>
-              <CardTitle>Próximos Vencimentos</CardTitle>
-              <CardDescription>Faturas e renovações para os próximos 7 dias.</CardDescription>
+              <CardTitle className="text-lg md:text-xl">Próximos Vencimentos</CardTitle>
+              <CardDescription>Faturas e renovações (7 dias).</CardDescription>
             </div>
-            <Clock className="h-4 w-4 text-accent" />
+            <Clock className="h-4 w-4 text-accent shrink-0" />
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {[
                 { client: "Global Logística", type: "Mensalidade", value: "R$ 1.500", date: "Amanhã" },
-                { client: "Market Prime", type: "Manutenção", value: "R$ 450", date: "Em 3 dias" },
-                { client: "Health Care", type: "Cloud SaaS", value: "R$ 2.800", date: "Em 5 dias" },
-                { client: "Indústria Metal", type: "Suporte 24/7", value: "R$ 900", date: "Em 6 dias" },
+                { client: "Market Prime", type: "Manutenção", value: "R$ 450", date: "3 dias" },
+                { client: "Health Care", type: "Cloud SaaS", value: "R$ 2.800", date: "5 dias" },
               ].map((item, i) => (
-                <div key={i} className="flex items-center justify-between p-3 border-b border-border last:border-0">
-                  <div className="flex flex-col">
-                    <span className="text-sm font-semibold">{item.client}</span>
-                    <span className="text-xs text-muted-foreground">{item.type}</span>
+                <div key={i} className="flex items-center justify-between p-2 border-b border-border last:border-0">
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-sm font-semibold truncate">{item.client}</span>
+                    <span className="text-[10px] text-muted-foreground">{item.type}</span>
                   </div>
-                  <div className="text-right flex flex-col">
+                  <div className="text-right flex flex-col shrink-0">
                     <span className="text-sm font-bold text-foreground">{item.value}</span>
-                    <span className="text-xs font-medium text-accent">{item.date}</span>
+                    <span className="text-[10px] font-medium text-accent">{item.date}</span>
                   </div>
                 </div>
               ))}
@@ -270,8 +268,4 @@ export default function DashboardPage() {
       </div>
     </div>
   )
-}
-
-function cn(...classes: any[]) {
-  return classes.filter(Boolean).join(" ")
 }

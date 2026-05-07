@@ -15,7 +15,8 @@ import {
   Trash2,
   Search,
   Filter,
-  User
+  User,
+  PartyPopper
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -149,6 +150,38 @@ export default function CRMPage() {
     toast({ title: "Estágio alterado", description: "Lead movido com sucesso." })
   }
 
+  const handleConvertToClient = (lead: any) => {
+    // 1. Cria o cliente
+    const clientData = {
+      fullName: lead.fullName,
+      companyName: lead.companyName,
+      email: lead.email,
+      whatsapp: lead.whatsapp || "",
+      documentNumber: "Pendente", // Será preenchido no cadastro de cliente
+      address: "Pendente",
+      city: "Pendente",
+      state: "Pendente",
+      zipCode: "Pendente",
+      status: "Ativo",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+
+    addDocumentNonBlocking(collection(db, "clients"), clientData)
+
+    // 2. Atualiza o lead como convertido
+    updateDocumentNonBlocking(doc(db, "crmLeads", lead.id), {
+      pipelineStage: "converted", // Estágio interno de finalizado
+      status: "Convertido",
+      updatedAt: new Date().toISOString()
+    })
+
+    toast({
+      title: "Parabéns! Novo Cliente",
+      description: `${lead.fullName} agora é um cliente oficial.`,
+    })
+  }
+
   const handleDeleteLead = (id: string) => {
     deleteDocumentNonBlocking(doc(db, "crmLeads", id))
     toast({ title: "Lead removido", description: "O registro foi excluído do CRM." })
@@ -236,10 +269,16 @@ export default function CRMPage() {
                               const currentIndex = stages.findIndex(s => s.id === stage.id);
                               if (currentIndex < stages.length - 1) {
                                 handleMoveStage(lead.id, stages[currentIndex + 1].id);
+                              } else if (stage.id === "proposal") {
+                                handleConvertToClient(lead);
                               }
                             }}
                           >
-                            Mover <ArrowRight className="ml-1 h-3 w-3" />
+                            {stage.id === "proposal" ? (
+                              <>Converter <PartyPopper className="ml-1 h-3 w-3 text-emerald-500" /></>
+                            ) : (
+                              <>Mover <ArrowRight className="ml-1 h-3 w-3" /></>
+                            )}
                           </Button>
                         </div>
                       </CardContent>

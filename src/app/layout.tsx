@@ -3,7 +3,7 @@
 
 import type { Metadata } from 'next';
 import './globals.css';
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Toaster } from "@/components/ui/toaster";
 import { FirebaseClientProvider } from '@/firebase/client-provider';
@@ -11,6 +11,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { useUser } from '@/firebase';
 import { cn } from "@/lib/utils"
+import { ShieldCheck, Menu } from "lucide-react"
 
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser()
@@ -64,10 +65,26 @@ export default function RootLayout({
               <div className="flex min-h-screen w-full overflow-hidden">
                 {!isLoginPage && <AppSidebar />}
                 <main className={cn(
-                  "flex-1 overflow-y-auto overflow-x-hidden transition-all duration-300",
-                  !isLoginPage && "p-4 md:p-6 lg:p-8"
+                  "flex-1 flex flex-col overflow-hidden transition-all duration-300",
+                  !isLoginPage && "bg-background"
                 )}>
-                  <div className={cn("mx-auto space-y-6 md:space-y-8", !isLoginPage && "max-w-7xl w-full")}>
+                  {!isLoginPage && (
+                    <header className="flex h-16 shrink-0 items-center justify-between gap-2 border-b border-border px-4 md:hidden">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+                          <ShieldCheck className="h-5 w-5" />
+                        </div>
+                        <span className="text-lg font-black tracking-tighter">NexusFlow</span>
+                      </div>
+                      <SidebarTrigger>
+                        <Menu className="h-6 w-6" />
+                      </SidebarTrigger>
+                    </header>
+                  )}
+                  <div className={cn(
+                    "flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 lg:p-8",
+                    !isLoginPage && "max-w-7xl w-full mx-auto space-y-6 md:space-y-8"
+                  )}>
                     {children}
                   </div>
                 </main>

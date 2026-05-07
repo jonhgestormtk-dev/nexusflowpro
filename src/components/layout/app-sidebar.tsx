@@ -67,12 +67,12 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-border">
       <SidebarHeader className="flex flex-row items-center gap-2 px-4 py-6">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-lg shadow-primary/20 shrink-0">
           <ShieldCheck className="h-5 w-5" />
         </div>
         <div className="flex flex-col overflow-hidden group-data-[collapsible=icon]:hidden">
-          <span className="text-lg font-black tracking-tighter text-foreground">NexusFlow</span>
-          <span className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">SaaS Edition</span>
+          <span className="text-lg font-black tracking-tighter text-foreground whitespace-nowrap">NexusFlow</span>
+          <span className="text-[10px] text-muted-foreground uppercase font-black tracking-widest whitespace-nowrap">SaaS Edition</span>
         </div>
         <SidebarTrigger className="ml-auto md:hidden" />
       </SidebarHeader>
@@ -139,7 +139,7 @@ export function AppSidebar() {
       <SidebarFooter className="p-4">
         <div className="flex flex-col gap-4 overflow-hidden group-data-[collapsible=icon]:hidden">
           <div className="flex items-center gap-3 rounded-xl border border-border p-3 bg-card/50 backdrop-blur-sm">
-            <div className="h-9 w-9 rounded-lg bg-accent/20 flex items-center justify-center text-accent">
+            <div className="h-9 w-9 rounded-lg bg-accent/20 flex items-center justify-center text-accent shrink-0">
               <UserCircle className="h-6 w-6" />
             </div>
             <div className="flex flex-col overflow-hidden">

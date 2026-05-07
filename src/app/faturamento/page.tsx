@@ -13,12 +13,12 @@ import {
   Filter,
   Loader2,
   MoreVertical,
-  Trash2
+  Trash2,
+  Check
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import {
   Table,
@@ -39,7 +39,8 @@ import {
   useFirestore, 
   useMemoFirebase, 
   useUser,
-  deleteDocumentNonBlocking
+  deleteDocumentNonBlocking,
+  updateDocumentNonBlocking
 } from "@/firebase"
 import { collection, query, orderBy, doc } from "firebase/firestore"
 import { cn } from "@/lib/utils"
@@ -82,7 +83,6 @@ export default function BillingPage() {
       .filter(inv => inv.paymentStatus === "Pendente")
       .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
     
-    // Simular inadimplência baseada em faturas vencidas (simplificado)
     const today = new Date()
     const delinquency = invoices
       .filter(inv => inv.paymentStatus !== "Pago" && new Date(inv.dueDate) < today)
@@ -90,6 +90,18 @@ export default function BillingPage() {
 
     return { mrr, pending, delinquency }
   }, [invoices, contracts])
+
+  const handleMarkAsPaid = (invoiceId: string) => {
+    updateDocumentNonBlocking(doc(db, "invoices", invoiceId), {
+      paymentStatus: "Pago",
+      paidDate: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    })
+    toast({
+      title: "Pagamento Confirmado",
+      description: "A fatura foi marcada como paga com sucesso.",
+    })
+  }
 
   const handleDeleteInvoice = (id: string) => {
     deleteDocumentNonBlocking(doc(db, "invoices", id))
@@ -226,12 +238,17 @@ export default function BillingPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="bg-popover border-border">
-                          <DropdownMenuItem className="text-[10px] font-bold uppercase cursor-pointer">
-                            Marcar como Pago
-                          </DropdownMenuItem>
+                          {inv.paymentStatus !== "Pago" && (
+                            <DropdownMenuItem 
+                              className="text-[10px] font-bold uppercase cursor-pointer"
+                              onClick={() => handleMarkAsPaid(inv.id)}
+                            >
+                              <Check className="mr-2 h-3 w-3" /> Marcar como Pago
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem 
                             className="text-[10px] font-bold uppercase cursor-pointer text-destructive focus:text-destructive"
-                            onClick={() => handleDeleteInvoice(inv.id)}
+                            onClick={() => handleDeleteInvoice(id)}
                           >
                             <Trash2 className="mr-2 h-3 w-3" /> Excluir Fatura
                           </DropdownMenuItem>

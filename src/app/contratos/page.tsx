@@ -107,9 +107,11 @@ export default function ContractsPage() {
     reader.onload = async () => {
       try {
         const dataUri = reader.result as string
+        console.log("Iniciando análise de PDF via IA...");
         const result = await extractContractDetails({ pdfDataUri: dataUri })
         
         if (result) {
+          console.log("Dados extraídos:", result);
           setExtractedData(result)
           toast({
             title: "Análise Concluída",
@@ -117,6 +119,7 @@ export default function ContractsPage() {
           })
         }
       } catch (error: any) {
+        console.error("Erro na extração de dados:", error);
         toast({
           variant: "destructive",
           title: "Erro na Análise",
@@ -155,7 +158,7 @@ export default function ContractsPage() {
       const contractRef = await addDocumentNonBlocking(collection(db, "contracts"), newContract);
       
       if (contractRef) {
-        // Automação: Criar primeira fatura para daqui a 30 dias
+        // Automação: Criar primeira fatura para daqui a 30 dias com o nome do cliente denormalizado
         const firstInvoice = {
           contractId: contractRef.id,
           clientName: newContract.clientName,
@@ -175,10 +178,11 @@ export default function ContractsPage() {
         setExtractedData(null)
         toast({
           title: "Contrato Registrado",
-          description: `O contrato para ${newContract.clientName} foi salvo e a primeira fatura foi agendada para daqui a 30 dias.`,
+          description: `O contrato para ${newContract.clientName} foi salvo e a primeira fatura foi agendada para ${dueDate.toLocaleDateString('pt-BR')}.`,
         })
       }
     } catch (err) {
+      console.error("Erro ao salvar contrato:", err);
       setIsSaving(false)
       toast({
         variant: "destructive",

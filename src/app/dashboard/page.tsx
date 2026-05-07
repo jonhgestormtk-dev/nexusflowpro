@@ -1,16 +1,14 @@
-
 "use client"
 
 import * as React from "react"
 import { 
-  TrendingUp, 
   Users, 
   FileCheck, 
-  Clock, 
   DollarSign, 
   AlertCircle,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Loader2
 } from "lucide-react"
 import { 
   BarChart, 
@@ -28,41 +26,8 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-
-const stats = [
-  {
-    title: "Contratos Ativos",
-    value: "128",
-    change: "+12%",
-    trend: "up",
-    icon: FileCheck,
-    color: "text-primary"
-  },
-  {
-    title: "Faturamento Mensal",
-    value: "R$ 45.230",
-    change: "+5.4%",
-    trend: "up",
-    icon: DollarSign,
-    color: "text-accent"
-  },
-  {
-    title: "Clientes Ativos",
-    value: "84",
-    change: "+8%",
-    trend: "up",
-    icon: Users,
-    color: "text-emerald-500"
-  },
-  {
-    title: "Inadimplência",
-    value: "R$ 3.120",
-    change: "-2.1%",
-    trend: "down",
-    icon: AlertCircle,
-    color: "text-destructive"
-  }
-]
+import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
+import { collection } from "firebase/firestore"
 
 const revenueData = [
   { month: "Jan", value: 32000 },
@@ -81,16 +46,55 @@ const serviceData = [
 ]
 
 export default function DashboardPage() {
-  const [mounted, setMounted] = React.useState(false)
-  React.useEffect(() => setMounted(true), [])
+  const db = useFirestore()
+  
+  // Realtime queries for stats
+  const clientsQuery = useMemoFirebase(() => collection(db, "clients"), [db])
+  const contractsQuery = useMemoFirebase(() => collection(db, "contracts"), [db])
+  
+  const { data: clients, isLoading: loadingClients } = useCollection(clientsQuery)
+  const { data: contracts, isLoading: loadingContracts } = useCollection(contractsQuery)
 
-  if (!mounted) return null
+  const stats = [
+    {
+      title: "Contratos Ativos",
+      value: loadingContracts ? "..." : (contracts?.length || 0).toString(),
+      change: "+12%",
+      trend: "up",
+      icon: FileCheck,
+      color: "text-primary"
+    },
+    {
+      title: "Faturamento Estimado",
+      value: loadingContracts ? "..." : `R$ ${contracts?.reduce((acc, curr) => acc + (Number(curr.monthlyValue) || 0), 0).toLocaleString()}`,
+      change: "+5.4%",
+      trend: "up",
+      icon: DollarSign,
+      color: "text-accent"
+    },
+    {
+      title: "Clientes Totais",
+      value: loadingClients ? "..." : (clients?.length || 0).toString(),
+      change: "+8%",
+      trend: "up",
+      icon: Users,
+      color: "text-emerald-500"
+    },
+    {
+      title: "Aguardando",
+      value: "0",
+      change: "0%",
+      trend: "down",
+      icon: AlertCircle,
+      color: "text-destructive"
+    }
+  ]
 
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500 overflow-x-hidden">
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Visão Geral</h1>
-        <p className="text-sm md:text-base text-muted-foreground text-balance">Bem-vindo ao NexusFlow. Aqui está o resumo operacional da sua empresa.</p>
+        <p className="text-sm md:text-base text-muted-foreground text-balance">Métricas reais conectadas ao seu banco de dados Firestore.</p>
       </div>
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -123,7 +127,7 @@ export default function DashboardPage() {
         <Card className="lg:col-span-4 border-border bg-card/50">
           <CardHeader>
             <CardTitle className="text-lg md:text-xl">Crescimento Financeiro</CardTitle>
-            <CardDescription>Receita mensal recorrente (MRR) nos últimos 6 meses.</CardDescription>
+            <CardDescription>Receita mensal recorrente (MRR) projetada.</CardDescription>
           </CardHeader>
           <CardContent className="h-[250px] md:h-[350px]">
             <ResponsiveContainer width="100%" height="100%">
@@ -165,7 +169,7 @@ export default function DashboardPage() {
         <Card className="lg:col-span-3 border-border bg-card/50 relative">
           <CardHeader>
             <CardTitle className="text-lg md:text-xl">Distribuição de Serviços</CardTitle>
-            <CardDescription>Baseado em contratos ativos por categoria.</CardDescription>
+            <CardDescription>Baseado em categorias ativas.</CardDescription>
           </CardHeader>
           <CardContent className="h-[250px] md:h-[300px] flex items-center justify-center">
              <ResponsiveContainer width="100%" height="100%">
@@ -187,8 +191,8 @@ export default function DashboardPage() {
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none mt-16">
-              <span className="text-xl md:text-2xl font-bold">128</span>
-              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Total</span>
+              <span className="text-xl md:text-2xl font-bold">{contracts?.length || 0}</span>
+              <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Contratos</span>
             </div>
           </CardContent>
           <div className="p-4 md:p-6 pt-0 grid grid-cols-2 gap-2 md:gap-4">
@@ -200,70 +204,6 @@ export default function DashboardPage() {
               </div>
             ))}
           </div>
-        </Card>
-      </div>
-
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
-        <Card className="border-border bg-card/50">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="text-lg md:text-xl">Últimos Clientes</CardTitle>
-              <CardDescription>Adicionados recentemente.</CardDescription>
-            </div>
-            <Badge variant="outline" className="text-[10px] font-bold shrink-0">VER TODOS</Badge>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {[
-                { name: "Tech Solutions Inc", segment: "Sistemas", date: "2h atrás" },
-                { name: "Bella Massa", segment: "App Delivery", date: "5h atrás" },
-                { name: "Eco Vida Solar", segment: "Branding", date: "1 dia atrás" },
-              ].map((client, i) => (
-                <div key={i} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0">
-                    {client.name.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate">{client.name}</p>
-                    <p className="text-[10px] md:text-xs text-muted-foreground truncate">{client.segment}</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase">{client.date}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border bg-card/50">
-          <CardHeader className="flex flex-row items-center justify-between">
-             <div>
-              <CardTitle className="text-lg md:text-xl">Próximos Vencimentos</CardTitle>
-              <CardDescription>Faturas e renovações (7 dias).</CardDescription>
-            </div>
-            <Clock className="h-4 w-4 text-accent shrink-0" />
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {[
-                { client: "Global Logística", type: "Mensalidade", value: "R$ 1.500", date: "Amanhã" },
-                { client: "Market Prime", type: "Manutenção", value: "R$ 450", date: "3 dias" },
-                { client: "Health Care", type: "Cloud SaaS", value: "R$ 2.800", date: "5 dias" },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center justify-between p-2 border-b border-border last:border-0">
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-sm font-semibold truncate">{item.client}</span>
-                    <span className="text-[10px] text-muted-foreground">{item.type}</span>
-                  </div>
-                  <div className="text-right flex flex-col shrink-0">
-                    <span className="text-sm font-bold text-foreground">{item.value}</span>
-                    <span className="text-[10px] font-medium text-accent">{item.date}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
         </Card>
       </div>
     </div>

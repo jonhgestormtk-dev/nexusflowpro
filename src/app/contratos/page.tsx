@@ -3,15 +3,13 @@
 import * as React from "react"
 import { 
   Plus, 
-  Search, 
   FileUp, 
   ArrowRight,
-  ShieldCheck,
   CalendarDays,
   CreditCard,
-  FileCheck,
   Sparkles,
-  Loader2
+  Loader2,
+  CheckCircle2
 } from "lucide-react"
 import { extractContractDetails, AIContractDetailExtractorOutput } from "@/ai/flows/ai-contract-detail-extractor"
 
@@ -30,12 +28,28 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
+import { 
+  useCollection, 
+  useFirestore, 
+  useMemoFirebase, 
+  addDocumentNonBlocking 
+} from "@/firebase"
+import { collection, query, orderBy } from "firebase/firestore"
+import { cn } from "@/lib/utils"
 
 export default function ContractsPage() {
   const { toast } = useToast()
+  const db = useFirestore()
   const [isUploading, setIsUploading] = React.useState(false)
+  const [isSaving, setIsSaving] = React.useState(false)
   const [extractedData, setExtractedData] = React.useState<AIContractDetailExtractorOutput | null>(null)
   const [open, setOpen] = React.useState(false)
+
+  // Fetch real contracts
+  const contractsQuery = useMemoFirebase(() => {
+    return query(collection(db, "contracts"), orderBy("createdAt", "desc"))
+  }, [db])
+  const { data: contracts, isLoading } = useCollection(contractsQuery)
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -43,7 +57,6 @@ export default function ContractsPage() {
 
     setIsUploading(true)
     try {
-      // Convert file to base64 data URI
       const reader = new FileReader()
       reader.onload = async () => {
         const dataUri = reader.result as string
@@ -67,35 +80,40 @@ export default function ContractsPage() {
     }
   }
 
-  const contracts = [
-    {
-      id: "C-1001",
-      client: "Silva Tech",
-      service: "Sistemas de Gestão",
-      value: "R$ 1.200,00",
+  const handleSaveContract = () => {
+    if (!extractedData) return
+    setIsSaving(true)
+
+    const newContract = {
+      clientName: extractedData.clientName,
+      serviceType: extractedData.serviceType,
+      monthlyValue: extractedData.monthlyValue,
+      startDate: extractedData.startDate,
       status: "Ativo",
-      expiry: "15/12/2024",
-      score: 95
-    },
-    {
-      id: "C-1002",
-      client: "Global Logística",
-      service: "App Personalizado",
-      value: "R$ 2.500,00",
-      status: "Atrasado",
-      expiry: "01/06/2024",
-      score: 45
-    },
-    {
-      id: "C-1003",
-      client: "Market Prime",
-      service: "Site Profissional",
-      value: "R$ 450,00",
-      status: "Ativo",
-      expiry: "20/01/2025",
-      score: 88
+      score: 100,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     }
-  ]
+
+    addDocumentNonBlocking(collection(db, "contracts"), newContract)
+      .then(() => {
+        setIsSaving(false)
+        setOpen(false)
+        setExtractedData(null)
+        toast({
+          title: "Contrato Registrado",
+          description: "O contrato foi salvo com sucesso no banco de dados.",
+        })
+      })
+      .catch(() => {
+        setIsSaving(false)
+        toast({
+          variant: "destructive",
+          title: "Erro ao salvar",
+          description: "Não foi possível registrar o contrato.",
+        })
+      })
+  }
 
   return (
     <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-500">
@@ -119,12 +137,12 @@ export default function ContractsPage() {
             </DialogHeader>
             <div className="grid gap-6 py-4">
               {!extractedData ? (
-                <div className="border-2 border-dashed border-border rounded-xl p-10 flex flex-col items-center justify-center gap-4 bg-muted/20">
+                <div className="border-2 border-dashed border-border rounded-xl p-10 flex flex-col items-center justify-center gap-4 bg-muted/20 relative">
                   <div className={cn("p-4 rounded-full bg-primary/10", isUploading && "animate-pulse")}>
                     {isUploading ? <Loader2 className="h-8 w-8 text-primary animate-spin" /> : <FileUp className="h-8 w-8 text-primary" />}
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-semibold">{isUploading ? "Analisando Contrato..." : "Arraste seu PDF ou clique aqui"}</p>
+                    <p className="text-sm font-semibold">{isUploading ? "Analisando Contrato..." : "Clique para selecionar o PDF"}</p>
                     <p className="text-xs text-muted-foreground">Arquivos suportados: PDF (max 10MB)</p>
                   </div>
                   <Input 
@@ -158,17 +176,14 @@ export default function ContractsPage() {
                       <Input value={extractedData.startDate} readOnly className="bg-muted/50" />
                     </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label>Termos de Pagamento</Label>
-                    <Input value={extractedData.paymentTerms} readOnly className="bg-muted/50" />
-                  </div>
                 </div>
               )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => {setExtractedData(null); setOpen(false)}}>Cancelar</Button>
-              <Button disabled={!extractedData} onClick={() => {toast({title: "Contrato Criado", description: "O contrato foi registrado com sucesso."}); setOpen(false); setExtractedData(null)}}>
-                Confirmar Cadastro
+              <Button disabled={!extractedData || isSaving} onClick={handleSaveContract}>
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                Confirmar Registro
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -176,65 +191,72 @@ export default function ContractsPage() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {contracts.map((contract) => (
-          <Card key={contract.id} className="card-hover bg-card/50 border-border overflow-hidden group">
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between mb-2">
-                <Badge 
-                  variant="outline" 
-                  className={cn(
-                    "text-[10px] font-black tracking-widest",
-                    contract.status === "Ativo" ? "border-emerald-500/30 text-emerald-500" : "border-destructive/30 text-destructive"
-                  )}
-                >
-                  {contract.status.toUpperCase()}
-                </Badge>
-                <span className="text-[10px] font-bold text-muted-foreground">{contract.id}</span>
-              </div>
-              <CardTitle className="text-xl group-hover:text-primary transition-colors">{contract.client}</CardTitle>
-              <CardDescription>{contract.service}</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-4">
-              <div className="flex items-center justify-between py-2 border-y border-border">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-bold">{contract.value}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium">{contract.expiry}</span>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs font-bold">
-                  <span className="text-muted-foreground">SCORE DE SAÚDE</span>
-                  <span className={cn(contract.score > 80 ? "text-emerald-500" : "text-destructive")}>
-                    {contract.score}%
-                  </span>
-                </div>
-                <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                  <div 
+        {isLoading ? (
+          <div className="col-span-full py-20 text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary mb-4" />
+            <p className="text-muted-foreground">Carregando seus contratos...</p>
+          </div>
+        ) : contracts && contracts.length > 0 ? (
+          contracts.map((contract) => (
+            <Card key={contract.id} className="card-hover bg-card/50 border-border overflow-hidden group">
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between mb-2">
+                  <Badge 
+                    variant="outline" 
                     className={cn(
-                      "h-full transition-all duration-1000",
-                      contract.score > 80 ? "bg-emerald-500" : "bg-destructive"
-                    )} 
-                    style={{ width: `${contract.score}%` }} 
-                  />
+                      "text-[10px] font-black tracking-widest",
+                      contract.status === "Ativo" ? "border-emerald-500/30 text-emerald-500" : "border-destructive/30 text-destructive"
+                    )}
+                  >
+                    {contract.status.toUpperCase()}
+                  </Badge>
+                  <span className="text-[10px] font-bold text-muted-foreground">ID: {contract.id.slice(-6)}</span>
                 </div>
-              </div>
+                <CardTitle className="text-xl group-hover:text-primary transition-colors truncate">{contract.clientName}</CardTitle>
+                <CardDescription className="truncate">{contract.serviceType}</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-4">
+                <div className="flex items-center justify-between py-2 border-y border-border">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-bold">R$ {contract.monthlyValue}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm font-medium">{contract.startDate}</span>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold">
+                    <span className="text-muted-foreground">SCORE DE SAÚDE</span>
+                    <span className={cn(contract.score > 80 ? "text-emerald-500" : "text-destructive")}>
+                      {contract.score}%
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                    <div 
+                      className={cn(
+                        "h-full transition-all duration-1000",
+                        contract.score > 80 ? "bg-emerald-500" : "bg-destructive"
+                      )} 
+                      style={{ width: `${contract.score}%` }} 
+                    />
+                  </div>
+                </div>
 
-              <Button variant="outline" className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300">
-                Ver Documentação <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
+                <Button variant="outline" className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-300">
+                  Ver Documentação <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
+          ))
+        ) : (
+          <div className="col-span-full py-20 text-center border-2 border-dashed border-border rounded-xl">
+             <p className="text-muted-foreground">Nenhum contrato encontrado. Use a IA para cadastrar o primeiro!</p>
+          </div>
+        )}
       </div>
     </div>
   )
-}
-
-function cn(...classes: any[]) {
-  return classes.filter(Boolean).join(" ")
 }

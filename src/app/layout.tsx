@@ -38,6 +38,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     )
   }
 
+  // Evita renderizar conteúdo protegido se o usuário não estiver logado
+  if (!user && pathname !== '/login') {
+    return null;
+  }
+
   return <>{children}</>
 }
 

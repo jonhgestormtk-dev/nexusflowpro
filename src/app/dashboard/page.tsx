@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -26,7 +27,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
-import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
+import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase"
 import { collection } from "firebase/firestore"
 
 const revenueData = [
@@ -47,10 +48,11 @@ const serviceData = [
 
 export default function DashboardPage() {
   const db = useFirestore()
+  const { user } = useUser()
   
-  // Realtime queries for stats
-  const clientsQuery = useMemoFirebase(() => collection(db, "clients"), [db])
-  const contractsQuery = useMemoFirebase(() => collection(db, "contracts"), [db])
+  // Realtime queries for stats - Espera o usuário estar logado
+  const clientsQuery = useMemoFirebase(() => user ? collection(db, "clients") : null, [db, user])
+  const contractsQuery = useMemoFirebase(() => user ? collection(db, "contracts") : null, [db, user])
   
   const { data: clients, isLoading: loadingClients } = useCollection(clientsQuery)
   const { data: contracts, isLoading: loadingContracts } = useCollection(contractsQuery)

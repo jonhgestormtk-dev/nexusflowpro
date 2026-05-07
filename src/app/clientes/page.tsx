@@ -46,6 +46,7 @@ import {
   useCollection, 
   useFirestore, 
   useMemoFirebase, 
+  useUser,
   addDocumentNonBlocking,
   deleteDocumentNonBlocking
 } from "@/firebase"
@@ -56,14 +57,16 @@ import { cn } from "@/lib/utils"
 export default function ClientsPage() {
   const { toast } = useToast()
   const db = useFirestore()
+  const { user } = useUser()
   const [searchTerm, setSearchTerm] = React.useState("")
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
 
-  // Firestore Realtime Collection
+  // Firestore Realtime Collection - Espera o usuário estar logado
   const clientsQuery = useMemoFirebase(() => {
+    if (!user) return null
     return query(collection(db, "clients"), orderBy("createdAt", "desc"))
-  }, [db])
+  }, [db, user])
 
   const { data: clients, isLoading } = useCollection(clientsQuery)
 
@@ -90,7 +93,6 @@ export default function ClientsPage() {
       status: "Ativo",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      // Campos obrigatórios conforme schema
       address: formData.get("address") as string || "N/A",
       city: formData.get("city") as string || "N/A",
       state: formData.get("state") as string || "N/A",

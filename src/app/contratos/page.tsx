@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -32,6 +33,7 @@ import {
   useCollection, 
   useFirestore, 
   useMemoFirebase, 
+  useUser,
   addDocumentNonBlocking 
 } from "@/firebase"
 import { collection, query, orderBy } from "firebase/firestore"
@@ -40,15 +42,17 @@ import { cn } from "@/lib/utils"
 export default function ContractsPage() {
   const { toast } = useToast()
   const db = useFirestore()
+  const { user } = useUser()
   const [isUploading, setIsUploading] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
   const [extractedData, setExtractedData] = React.useState<AIContractDetailExtractorOutput | null>(null)
   const [open, setOpen] = React.useState(false)
 
-  // Fetch real contracts
+  // Fetch real contracts - Espera o usuário estar logado
   const contractsQuery = useMemoFirebase(() => {
+    if (!user) return null
     return query(collection(db, "contracts"), orderBy("createdAt", "desc"))
-  }, [db])
+  }, [db, user])
   const { data: contracts, isLoading } = useCollection(contractsQuery)
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {

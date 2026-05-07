@@ -11,7 +11,13 @@ import {
   Trash2,
   Edit,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  User,
+  Phone,
+  Mail,
+  MapPin,
+  FileText,
+  X
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -48,6 +54,7 @@ import {
   useMemoFirebase, 
   useUser,
   addDocumentNonBlocking,
+  updateDocumentNonBlocking,
   deleteDocumentNonBlocking
 } from "@/firebase"
 import { collection, query, orderBy, doc } from "firebase/firestore"
@@ -59,10 +66,16 @@ export default function ClientsPage() {
   const db = useFirestore()
   const { user } = useUser()
   const [searchTerm, setSearchTerm] = React.useState("")
+  
+  // Estados para Criação/Edição
   const [isDialogOpen, setIsDialogOpen] = React.useState(false)
   const [isSaving, setIsSaving] = React.useState(false)
+  const [selectedClient, setSelectedClient] = React.useState<any>(null)
+  const [isEditMode, setIsEditMode] = React.useState(false)
 
-  // Firestore Realtime Collection - Espera o usuário estar logado
+  // Estado para Visualização de Perfil
+  const [isProfileOpen, setIsProfileOpen] = React.useState(false)
+
   const clientsQuery = useMemoFirebase(() => {
     if (!user) return null
     return query(collection(db, "clients"), orderBy("createdAt", "desc"))
@@ -79,43 +92,73 @@ export default function ClientsPage() {
     )
   }, [clients, searchTerm])
 
-  const handleCreateClient = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleOpenCreate = () => {
+    setSelectedClient(null)
+    setIsEditMode(false)
+    setIsDialogOpen(true)
+  }
+
+  const handleOpenEdit = (client: any) => {
+    setSelectedClient(client)
+    setIsEditMode(true)
+    setIsDialogOpen(true)
+  }
+
+  const handleOpenProfile = (client: any) => {
+    setSelectedClient(client)
+    setIsProfileOpen(true)
+  }
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsSaving(true)
     const formData = new FormData(e.currentTarget)
     
-    const newClient = {
+    const clientData = {
       fullName: formData.get("fullName") as string,
       companyName: formData.get("companyName") as string,
       documentNumber: formData.get("documentNumber") as string,
       email: formData.get("email") as string,
       whatsapp: formData.get("whatsapp") as string,
-      status: "Ativo",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
       address: formData.get("address") as string || "N/A",
       city: formData.get("city") as string || "N/A",
       state: formData.get("state") as string || "N/A",
       zipCode: formData.get("zipCode") as string || "N/A",
+      status: selectedClient?.status || "Ativo",
+      updatedAt: new Date().toISOString(),
     }
 
-    addDocumentNonBlocking(collection(db, "clients"), newClient)
-      .then(() => {
-        setIsSaving(false)
-        setIsDialogOpen(false)
-        toast({
-          title: "Cliente cadastrado",
-          description: `${newClient.fullName} foi adicionado com sucesso.`,
-        })
+    if (isEditMode && selectedClient) {
+      updateDocumentNonBlocking(doc(db, "clients", selectedClient.id), clientData)
+      setIsSaving(false)
+      setIsDialogOpen(false)
+      toast({
+        title: "Cliente atualizado",
+        description: `${clientData.fullName} foi atualizado com sucesso.`,
       })
-      .catch(() => {
-        setIsSaving(false)
-        toast({
-          variant: "destructive",
-          title: "Erro ao cadastrar",
-          description: "Não foi possível salvar o cliente.",
+    } else {
+      const newClient = {
+        ...clientData,
+        createdAt: new Date().toISOString(),
+      }
+      addDocumentNonBlocking(collection(db, "clients"), newClient)
+        .then(() => {
+          setIsSaving(false)
+          setIsDialogOpen(false)
+          toast({
+            title: "Cliente cadastrado",
+            description: `${clientData.fullName} foi adicionado com sucesso.`,
+          })
         })
-      })
+        .catch(() => {
+          setIsSaving(false)
+          toast({
+            variant: "destructive",
+            title: "Erro ao cadastrar",
+            description: "Não foi possível salvar o cliente.",
+          })
+        })
+    }
   }
 
   const handleDeleteClient = (id: string, name: string) => {
@@ -134,66 +177,9 @@ export default function ClientsPage() {
           <p className="text-muted-foreground">Gerencie sua base de clientes e acompanhe o relacionamento.</p>
         </div>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-primary hover:bg-primary/90">
-              <Plus className="mr-2 h-4 w-4" /> Novo Cliente
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px] bg-card border-border">
-            <form onSubmit={handleCreateClient}>
-              <DialogHeader>
-                <DialogTitle>Cadastrar Novo Cliente</DialogTitle>
-                <DialogDescription>
-                  Preencha as informações básicas para registrar o cliente no NexusFlow Pro.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName">Nome Completo</Label>
-                    <Input id="fullName" name="fullName" placeholder="Ex: João Silva" required className="bg-muted/30" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="companyName">Empresa</Label>
-                    <Input id="companyName" name="companyName" placeholder="Nome Fantasia" required className="bg-muted/30" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="email">E-mail</Label>
-                    <Input id="email" name="email" type="email" placeholder="contato@empresa.com" required className="bg-muted/30" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="whatsapp">WhatsApp</Label>
-                    <Input id="whatsapp" name="whatsapp" placeholder="(00) 00000-0000" className="bg-muted/30" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="documentNumber">CPF/CNPJ</Label>
-                    <Input id="documentNumber" name="documentNumber" placeholder="Documento do cliente" required className="bg-muted/30" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="zipCode">CEP</Label>
-                    <Input id="zipCode" name="zipCode" placeholder="00000-000" className="bg-muted/30" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="address">Endereço</Label>
-                  <Input id="address" name="address" placeholder="Rua, Número, Bairro" className="bg-muted/30" />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" type="button" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-                <Button type="submit" disabled={isSaving}>
-                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
-                  Confirmar Cadastro
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={handleOpenCreate} className="bg-primary hover:bg-primary/90">
+          <Plus className="mr-2 h-4 w-4" /> Novo Cliente
+        </Button>
       </div>
 
       <div className="flex flex-col gap-4 md:flex-row md:items-center">
@@ -277,10 +263,10 @@ export default function ClientsPage() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-40 bg-popover border-border">
-                          <DropdownMenuItem className="cursor-pointer">
+                          <DropdownMenuItem className="cursor-pointer" onClick={() => handleOpenEdit(client)}>
                             <Edit className="mr-2 h-4 w-4" /> Editar
                           </DropdownMenuItem>
-                          <DropdownMenuItem className="cursor-pointer">
+                          <DropdownMenuItem className="cursor-pointer" onClick={() => handleOpenProfile(client)}>
                             <Building2 className="mr-2 h-4 w-4" /> Ver Perfil
                           </DropdownMenuItem>
                           <DropdownMenuItem 
@@ -305,6 +291,162 @@ export default function ClientsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Diálogo de Cadastro/Edição */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[600px] bg-card border-border">
+          <form key={selectedClient?.id || "new"} onSubmit={handleSubmit}>
+            <DialogHeader>
+              <DialogTitle>{isEditMode ? "Editar Cliente" : "Cadastrar Novo Cliente"}</DialogTitle>
+              <DialogDescription>
+                {isEditMode ? "Atualize as informações do cliente abaixo." : "Preencha as informações básicas para registrar o cliente no NexusFlow Pro."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="fullName">Nome Completo</Label>
+                  <Input id="fullName" name="fullName" defaultValue={selectedClient?.fullName} placeholder="Ex: João Silva" required className="bg-muted/30" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="companyName">Empresa</Label>
+                  <Input id="companyName" name="companyName" defaultValue={selectedClient?.companyName} placeholder="Nome Fantasia" required className="bg-muted/30" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input id="email" name="email" type="email" defaultValue={selectedClient?.email} placeholder="contato@empresa.com" required className="bg-muted/30" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="whatsapp">WhatsApp</Label>
+                  <Input id="whatsapp" name="whatsapp" defaultValue={selectedClient?.whatsapp} placeholder="(00) 00000-0000" className="bg-muted/30" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="documentNumber">CPF/CNPJ</Label>
+                  <Input id="documentNumber" name="documentNumber" defaultValue={selectedClient?.documentNumber} placeholder="Documento do cliente" required className="bg-muted/30" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="zipCode">CEP</Label>
+                  <Input id="zipCode" name="zipCode" defaultValue={selectedClient?.zipCode} placeholder="00000-000" className="bg-muted/30" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="address">Endereço</Label>
+                <Input id="address" name="address" defaultValue={selectedClient?.address} placeholder="Rua, Número, Bairro" className="bg-muted/30" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" type="button" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <CheckCircle2 className="h-4 w-4 mr-2" />}
+                {isEditMode ? "Salvar Alterações" : "Confirmar Cadastro"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Perfil do Cliente */}
+      <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
+        <DialogContent className="sm:max-w-[700px] bg-card border-border max-h-[90vh] overflow-y-auto">
+          {selectedClient && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-4">
+                  <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary text-2xl font-black">
+                    {selectedClient.fullName?.charAt(0)}
+                  </div>
+                  <div className="space-y-1">
+                    <DialogTitle className="text-2xl font-black">{selectedClient.fullName}</DialogTitle>
+                    <DialogDescription className="font-bold text-accent uppercase tracking-widest text-[10px]">
+                      {selectedClient.companyName}
+                    </DialogDescription>
+                  </div>
+                  <Badge 
+                    className={cn(
+                      "ml-auto font-black tracking-widest px-3 py-1",
+                      selectedClient.status === "Ativo" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-destructive/10 text-destructive border-destructive/20"
+                    )}
+                  >
+                    {selectedClient.status?.toUpperCase() || "ATIVO"}
+                  </Badge>
+                </div>
+              </DialogHeader>
+
+              <div className="grid gap-6 py-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/20 border border-border/50">
+                      <Mail className="h-4 w-4 text-primary" />
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">E-mail Principal</span>
+                        <span className="text-sm font-medium">{selectedClient.email}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/20 border border-border/50">
+                      <Phone className="h-4 w-4 text-primary" />
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">WhatsApp / Telefone</span>
+                        <span className="text-sm font-medium">{selectedClient.whatsapp || "Não informado"}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/20 border border-border/50">
+                      <FileText className="h-4 w-4 text-primary" />
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">CPF / CNPJ</span>
+                        <span className="text-sm font-medium">{selectedClient.documentNumber}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/20 border border-border/50">
+                      <MapPin className="h-4 w-4 text-primary" />
+                      <div className="flex flex-col">
+                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Localização</span>
+                        <span className="text-sm font-medium truncate">{selectedClient.city || selectedClient.address || "Não informado"}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground px-1">Endereço Completo</h4>
+                  <div className="p-4 rounded-xl bg-muted/30 border border-border/50 text-sm leading-relaxed">
+                    {selectedClient.address && selectedClient.address !== "N/A" ? (
+                      <>
+                        <p>{selectedClient.address}</p>
+                        <p className="text-muted-foreground">{selectedClient.city} - {selectedClient.state} | {selectedClient.zipCode}</p>
+                      </>
+                    ) : (
+                      <p className="text-muted-foreground italic">Endereço completo não cadastrado.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl bg-primary/5 border border-primary/10">
+                    <span className="text-[10px] font-black uppercase text-primary tracking-widest block mb-1">Membro desde</span>
+                    <p className="font-bold">{new Date(selectedClient.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-accent/5 border border-accent/10">
+                    <span className="text-[10px] font-black uppercase text-accent tracking-widest block mb-1">Última atualização</span>
+                    <p className="font-bold">{new Date(selectedClient.updatedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long' })}</p>
+                  </div>
+                </div>
+              </div>
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsProfileOpen(false)} className="w-full">
+                  Fechar Visualização
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

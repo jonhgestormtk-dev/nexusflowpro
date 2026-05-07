@@ -1,8 +1,7 @@
-
 "use client"
 
 import * as React from "react"
-import { ShieldCheck, Mail, Lock, Loader2, UserPlus, LogIn } from "lucide-react"
+import { ShieldCheck, Mail, Lock, Loader2, UserPlus } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useAuth, useFirestore, setDocumentNonBlocking } from "@/firebase"
 import { initiateEmailSignIn, initiateEmailSignUp } from "@/firebase/non-blocking-login"
@@ -41,13 +40,11 @@ export default function LoginPage() {
           return
         }
 
-        // Aguarda um pequeno intervalo para o Firebase atualizar o currentUser
         const checkUser = setInterval(() => {
           if (auth.currentUser) {
             clearInterval(checkUser)
             const userId = auth.currentUser.uid;
             
-            // 1. Criar documento do usuário no Firestore (Entidade User)
             setDocumentNonBlocking(doc(db, "users", userId), {
               id: userId,
               email: email,
@@ -57,8 +54,6 @@ export default function LoginPage() {
               updatedAt: new Date().toISOString()
             }, { merge: true });
 
-            // 2. Criar permissão de Admin na coleção DBAC (roles_admin)
-            // Isso é o que libera o acesso nas Security Rules
             setDocumentNonBlocking(doc(db, "roles_admin", userId), { 
               active: true,
               email: email,
@@ -77,8 +72,8 @@ export default function LoginPage() {
       })
     } else {
       initiateEmailSignIn(auth, email, password, (error: any) => {
-        setIsLoading(false)
         if (error) {
+          setIsLoading(false)
           let errorMessage = "Verifique seus dados e tente novamente."
           if (error.code === 'auth/invalid-credential') {
             errorMessage = "E-mail ou senha incorretos."
@@ -89,7 +84,23 @@ export default function LoginPage() {
             description: errorMessage,
           })
         } else {
-          router.push("/dashboard")
+          // No sucesso do login, garantimos que o papel de admin exista (reparo de conta)
+          const checkUser = setInterval(() => {
+            if (auth.currentUser) {
+              clearInterval(checkUser)
+              const userId = auth.currentUser.uid;
+              
+              setDocumentNonBlocking(doc(db, "roles_admin", userId), { 
+                active: true,
+                email: email,
+                userId: userId,
+                updatedAt: new Date().toISOString()
+              }, { merge: true });
+
+              setIsLoading(false)
+              router.push("/dashboard")
+            }
+          }, 500)
         }
       })
     }

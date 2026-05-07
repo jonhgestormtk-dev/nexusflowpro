@@ -15,7 +15,8 @@ import {
   MoreVertical,
   Trash2,
   Check,
-  RefreshCw
+  RefreshCw,
+  Sparkles
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -42,7 +43,8 @@ import {
   useMemoFirebase, 
   useUser,
   deleteDocumentNonBlocking,
-  updateDocumentNonBlocking
+  updateDocumentNonBlocking,
+  addDocumentNonBlocking
 } from "@/firebase"
 import { collection, query, orderBy, doc } from "firebase/firestore"
 import { cn } from "@/lib/utils"
@@ -55,7 +57,7 @@ export default function BillingPage() {
   const [searchTerm, setSearchTerm] = React.useState("")
   const [isProcessing, setIsProcessing] = React.useState(false)
 
-  // Sincronização em tempo real das faturas - Garantindo orderBy consistente
+  // Sincronização em tempo real das faturas
   const invoicesQuery = useMemoFirebase(() => {
     if (!user) return null
     return query(collection(db, "invoices"), orderBy("createdAt", "desc"))
@@ -118,14 +120,70 @@ export default function BillingPage() {
     })
   }
 
-  const handleProcessBatch = () => {
+  // LÓGICA DE RECORRÊNCIA: Gera faturas para o mês atual para contratos ativos
+  const handleProcessBatch = async () => {
+    if (!contracts || !invoices) return
     setIsProcessing(true)
+    
+    let createdCount = 0
+    const now = new Date()
+    const currentMonth = now.getMonth()
+    const currentYear = now.getFullYear()
+    
+    for (const contract of contracts) {
+      if (contract.status !== "Ativo") continue
+      
+      // Verifica se já existe fatura deste contrato para o mês atual
+      const hasInvoiceThisMonth = invoices.some(inv => {
+        if (inv.contractId !== contract.id) return false
+        const dueDate = new Date(inv.dueDate)
+        return dueDate.getMonth() === currentMonth && dueDate.getFullYear() === currentYear
+      })
+      
+      if (!hasInvoiceThisMonth) {
+        // Tenta manter o dia de vencimento original do contrato
+        let day = 10;
+        try {
+          if (contract.startDate && contract.startDate.includes('/')) {
+            day = parseInt(contract.startDate.split('/')[0]);
+          } else if (contract.startDate && contract.startDate.includes('-')) {
+            day = new Date(contract.startDate).getDate();
+          }
+        } catch(e) { day = 10; }
+
+        const dueDate = new Date(currentYear, currentMonth, day)
+        if (isNaN(dueDate.getTime())) dueDate.setDate(10)
+
+        const newInvoice = {
+          contractId: contract.id,
+          clientName: contract.clientName,
+          amount: Number(contract.monthlyValue),
+          issueDate: now.toISOString(),
+          dueDate: dueDate.toISOString(),
+          paymentStatus: "Pendente",
+          paymentMethod: "Manual",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        }
+        
+        addDocumentNonBlocking(collection(db, "invoices"), newInvoice)
+        createdCount++
+      }
+    }
+
     setTimeout(() => {
       setIsProcessing(false)
-      toast({
-        title: "Sincronização Finalizada",
-        description: "Status de faturas atualizados com o banco de dados.",
-      })
+      if (createdCount > 0) {
+        toast({
+          title: "Recorrência Processada",
+          description: `${createdCount} novas faturas foram geradas para o período atual.`,
+        })
+      } else {
+        toast({
+          title: "Tudo em dia",
+          description: "Não foram encontradas faturas pendentes de geração para este mês.",
+        })
+      }
     }, 1000)
   }
 
@@ -134,19 +192,19 @@ export default function BillingPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between px-1">
         <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Débitos e Faturamento</h1>
-          <p className="text-muted-foreground">Gestão financeira e acompanhamento de faturas em tempo real.</p>
+          <p className="text-muted-foreground">Gestão financeira e acompanhamento de faturas recorrentes.</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" className="border-border hidden sm:flex" onClick={() => toast({ title: "Exportação", description: "CSV gerado com sucesso." })}>
             <Download className="mr-2 h-4 w-4" /> Exportar
           </Button>
           <Button 
-            className="bg-primary hover:bg-primary/90 w-full sm:w-auto" 
+            className="bg-primary hover:bg-primary/90 w-full sm:w-auto font-bold" 
             onClick={handleProcessBatch}
             disabled={isProcessing}
           >
-            {isProcessing ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-            Sincronizar
+            {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+            Gerar Recorrência
           </Button>
         </div>
       </div>
@@ -167,7 +225,7 @@ export default function BillingPage() {
         </Card>
         <Card className="border-border bg-card/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">A Receber (Pendentes)</CardTitle>
+            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">A Receber (Mês Atual)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black text-accent">
@@ -283,7 +341,7 @@ export default function BillingPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={6} className="h-24 text-center text-muted-foreground text-sm">
-                    Nenhum débito encontrado para os filtros atuais.
+                    Nenhum débito encontrado. Clique em "Gerar Recorrência" para atualizar.
                   </TableCell>
                 </TableRow>
               )}

@@ -128,7 +128,7 @@ export default function BillingPage() {
       whatsapp: client?.whatsapp?.replace(/\D/g, '') || "",
       serviceType: contract?.serviceType || "Serviços Digitais",
       paymentTerms: contract?.paymentTerms || "",
-      pixKey: settings?.billingExternalSetupDetails || "Entre em contato para dados bancários."
+      pixKey: settings?.billingExternalSetupDetails || "Favor entrar em contato para obter os dados bancários."
     }
   }
 
@@ -138,47 +138,51 @@ export default function BillingPage() {
     const amount = Number(inv.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     
     const message = encodeURIComponent(
-      `Olá *${inv.clientName}*, tudo bem? 🚀\n\n` +
-      `Passando para formalizar o faturamento pendente referente aos nossos serviços:\n\n` +
-      `📄 *Fatura:* #${inv.id.slice(-6).toUpperCase()}\n` +
-      `🛠️ *Serviço:* ${context.serviceType}\n` +
-      `💰 *Valor:* ${amount}\n` +
-      `📅 *Vencimento:* ${dueDate}\n\n` +
-      `🏦 *Dados para Pagamento:*\n${context.pixKey}\n\n` +
-      `Por favor, nos envie o comprovante assim que realizar a operação. Se já efetuou o pagamento, favor desconsiderar. Em caso de dúvidas, estamos à disposição!`
+      `Prezado(a) *${inv.clientName}*,\n\n` +
+      `Informamos que a fatura referente à prestação de serviços de *${context.serviceType}* encontra-se disponível para pagamento.\n\n` +
+      `*DETALHES DA COBRANÇA:*\n` +
+      `• Fatura: #${inv.id.slice(-6).toUpperCase()}\n` +
+      `• Valor: ${amount}\n` +
+      `• Vencimento: ${dueDate}\n\n` +
+      `*DADOS PARA PAGAMENTO:*\n` +
+      `${context.pixKey}\n\n` +
+      `Favor encaminhar o comprovante de pagamento respondendo a esta mensagem. Caso o pagamento já tenha sido efetuado, por favor desconsidere este aviso.\n\n` +
+      `Atenciosamente,\n` +
+      `Departamento Financeiro`
     )
     
     window.open(`https://wa.me/${context.whatsapp}?text=${message}`, '_blank')
-    toast({ title: "WhatsApp Iniciado", description: `Enviando detalhes para ${inv.clientName}.` })
+    toast({ title: "WhatsApp Iniciado", description: `Enviando detalhes formais para ${inv.clientName}.` })
   }
 
   const handleSendEmail = (inv: any) => {
     const context = getContextInfo(inv)
     const dueDate = new Date(inv.dueDate).toLocaleDateString('pt-BR')
     const amount = Number(inv.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-    const subject = encodeURIComponent(`Fatura Pendente - ${context.serviceType} - #${inv.id.slice(-6).toUpperCase()}`)
+    const subject = encodeURIComponent(`Faturamento Pendente: ${context.serviceType} - Fatura #${inv.id.slice(-6).toUpperCase()}`)
     
     const body = encodeURIComponent(
-      `Olá ${inv.clientName},\n\n` +
-      `Esperamos que esteja tudo bem.\n\n` +
-      `Informamos que consta em nosso sistema uma fatura pendente referente à prestação de serviço de ${context.serviceType}.\n\n` +
-      `DETALHES DA COBRANÇA:\n` +
+      `Prezado(a) ${inv.clientName},\n\n` +
+      `Esperamos que este e-mail o(a) encontre bem.\n\n` +
+      `Gostaríamos de formalizar o envio da fatura referente aos serviços de ${context.serviceType}, conforme os detalhes abaixo:\n\n` +
+      `DETALHES DO FATURAMENTO\n` +
       `-----------------------------------\n` +
-      `Referência: #${inv.id.slice(-6).toUpperCase()}\n` +
+      `Fatura: #${inv.id.slice(-6).toUpperCase()}\n` +
       `Serviço: ${context.serviceType}\n` +
-      `Valor: ${amount}\n` +
-      `Vencimento: ${dueDate}\n` +
+      `Valor Total: ${amount}\n` +
+      `Data de Vencimento: ${dueDate}\n` +
       `-----------------------------------\n\n` +
-      `DADOS BANCÁRIOS / PIX:\n` +
+      `DADOS BANCÁRIOS E PIX PARA PAGAMENTO:\n` +
       `${context.pixKey}\n\n` +
-      `Caso já tenha realizado o pagamento, pedimos a gentileza de nos enviar o comprovante respondendo a este e-mail. Em caso de dúvidas, nossa equipe financeira está à disposição.\n\n` +
+      `Orientamos que o comprovante de pagamento seja enviado em anexo à resposta deste e-mail para que possamos realizar a respectiva baixa em nosso sistema.\n\n` +
+      `Caso o pagamento já tenha sido providenciado, pedimos a gentileza de desconsiderar este comunicado. Permanecemos à inteira disposição para eventuais dúvidas.\n\n` +
       `Atenciosamente,\n` +
-      `${settings?.emailSenderName || 'Equipe NexusFlow Pro'}\n` +
+      `${settings?.emailSenderName || 'Departamento Financeiro'}\n` +
       `${settings?.emailSignature || ''}`
     )
     
     window.location.href = `mailto:${context.email}?subject=${subject}&body=${body}`
-    toast({ title: "E-mail Preparado", description: `Enviando cobrança detalhada para ${context.email || inv.clientName}.` })
+    toast({ title: "E-mail Preparado", description: `Enviando cobrança formal para ${context.email || inv.clientName}.` })
   }
 
   const handleMarkAsPaid = (invoiceId: string) => {

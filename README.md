@@ -2,28 +2,12 @@
 
 Este é o repositório oficial do **NexusFlow Pro**, uma solução SaaS completa para gestão de clientes, contratos e faturamento recorrente.
 
-## 🚀 Como subir para o seu GitHub (Correção de Erros)
+## 🚀 Como finalizar o envio para o GitHub
 
-Se você recebeu o erro `remote origin already exists`, pule para o passo 3. Se o erro foi `[rejected] main -> main`, use o passo 6.
+Como o seu terminal já indica `nothing to commit, working tree clean`, você só precisa executar este comando final para substituir os arquivos iniciais do GitHub pelo seu projeto completo:
 
-1.  **Inicie o Git**:
-    `git init`
-
-2.  **Adicione o repositório remoto** (Se der erro aqui, pode ignorar e seguir):
-    `git remote add origin https://github.com/jonhgestormtk-dev/nexusflowpro.git`
-
-3.  **Prepare os arquivos**:
-    `git add .`
-
-4.  **Faça o commit**:
-    `git commit -m "feat: setup inicial do NexusFlow Pro"`
-
-5.  **Defina a branch principal**:
-    `git branch -M main`
-
-6.  **Envie o código (Forçando o envio para resolver o erro 'rejected')**:
-    Use este comando para substituir os arquivos do GitHub pelo seu código local:
-    `git push -u origin main --force`
+**Digite no terminal:**
+`git push -u origin main --force`
 
 ---
 

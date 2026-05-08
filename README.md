@@ -1,36 +1,30 @@
 # NexusFlow Pro | Gestão SaaS Premium
 
-Este é o repositório oficial do **NexusFlow Pro**, uma solução SaaS completa para gestão de clientes, contratos e faturamento recorrente, construída com Next.js, Firebase e Inteligência Artificial.
+Este é o repositório oficial do **NexusFlow Pro**, uma solução SaaS completa para gestão de clientes, contratos e faturamento recorrente.
 
 ## 🚀 Como subir para o seu GitHub
 
-Para sincronizar este projeto com o seu repositório remoto, siga estes passos no terminal do Firebase Studio:
+Se você não conseguir colar no terminal, digite estes comandos exatamente nesta ordem:
 
-1. **Inicie o Git** (caso ainda não esteja iniciado):
-   ```bash
-   git init
-   ```
+1.  **Inicie o Git**:
+    `git init`
 
-2. **Adicione o repositório remoto**:
-   ```bash
-   git remote add origin https://github.com/jonhgestormtk-dev/nexusflowpro.git
-   ```
+2.  **Adicione o repositório remoto**:
+    `git remote add origin https://github.com/jonhgestormtk-dev/nexusflowpro.git`
 
-3. **Faça o commit inicial**:
-   ```bash
-   git add .
-   ```
-   ```bash
-   git commit -m "feat: setup inicial do NexusFlow Pro"
-   ```
+3.  **Prepare os arquivos**:
+    `git add .`
 
-4. **Envie o código**:
-   ```bash
-   git branch -M main
-   ```
-   ```bash
-   git push -u origin main
-   ```
+4.  **Faça o commit**:
+    `git commit -m "feat: setup inicial do NexusFlow Pro"`
+
+5.  **Defina a branch principal**:
+    `git branch -M main`
+
+6.  **Envie o código**:
+    `git push -u origin main`
+
+---
 
 ## 🛠️ Tecnologias Principais
 
@@ -47,7 +41,7 @@ Para sincronizar este projeto com o seu repositório remoto, siga estes passos n
 - **Faturamento Automatizado**: Geração de faturas recorrentes e controle de numeração sequencial.
 - **Comunicação de Cobrança**: Envio formal de débitos via WhatsApp e E-mail.
 - **CRM / Pipeline**: Gestão de leads com conversão automática para clientes.
-- **Segurança**: Exclusão de dados sensíveis protegida por senha de administrador.
+- **Segurança**: Exclusão de dados sensíveis protegida por senha de administrador (`admin123`).
 
 ---
 *Este projeto foi prototipado no Firebase Studio.*

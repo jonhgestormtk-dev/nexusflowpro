@@ -12,7 +12,8 @@ import {
   Image as ImageIcon,
   ShieldCheck,
   Globe,
-  Smartphone
+  Smartphone,
+  Upload
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -27,7 +28,8 @@ import {
   useFirestore, 
   useMemoFirebase, 
   useUser,
-  setDocumentNonBlocking 
+  setDocumentNonBlocking,
+  updateDocumentNonBlocking
 } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { cn } from "@/lib/utils"
@@ -37,6 +39,7 @@ export default function SettingsPage() {
   const db = useFirestore()
   const { user } = useUser()
   const [isSaving, setIsSaving] = React.useState(false)
+  const logoInputRef = React.useRef<HTMLInputElement>(null)
 
   // Documento fixo de configurações da empresa
   const settingsRef = useMemoFirebase(() => {
@@ -78,6 +81,32 @@ export default function SettingsPage() {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast({ variant: "destructive", title: "Formato Inválido", description: "Selecione um arquivo de imagem (PNG, JPG, SVG)." })
+      return
+    }
+
+    if (file.size > 1024 * 1024) { // Limite 1MB para DataURI no Firestore
+      toast({ variant: "destructive", title: "Arquivo muito grande", description: "O logotipo deve ter no máximo 1MB." })
+      return
+    }
+
+    const reader = new FileReader()
+    reader.onload = () => {
+      const dataUrl = reader.result as string
+      updateDocumentNonBlocking(settingsRef, { 
+        logoUrl: dataUrl,
+        updatedAt: new Date().toISOString()
+      })
+      toast({ title: "Logo Atualizado", description: "A identidade visual da empresa foi alterada com sucesso." })
+    }
+    reader.readAsDataURL(file)
   }
 
   if (isLoading) {
@@ -156,13 +185,35 @@ export default function SettingsPage() {
                 </div>
                 <div className="pt-4 border-t border-border/50">
                   <div className="flex items-center gap-4">
-                    <div className="h-20 w-20 rounded-2xl bg-primary/10 border-2 border-dashed border-primary/30 flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-primary/20 transition-colors">
-                      <ImageIcon className="h-6 w-6 text-primary" />
-                      <span className="text-[8px] font-black uppercase tracking-tighter text-primary">Alterar Logo</span>
+                    <div 
+                      className="h-24 w-24 rounded-2xl bg-primary/10 border-2 border-dashed border-primary/30 flex flex-col items-center justify-center gap-1 cursor-pointer hover:bg-primary/20 transition-all group relative overflow-hidden"
+                      onClick={() => logoInputRef.current?.click()}
+                    >
+                      {settings?.logoUrl ? (
+                        <>
+                          <img src={settings.logoUrl} alt="Company Logo" className="absolute inset-0 w-full h-full object-contain p-2" />
+                          <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Upload className="h-5 w-5 text-white" />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <ImageIcon className="h-6 w-6 text-primary" />
+                          <span className="text-[8px] font-black uppercase tracking-tighter text-primary">Alterar Logo</span>
+                        </>
+                      )}
+                      <input 
+                        type="file" 
+                        ref={logoInputRef} 
+                        className="hidden" 
+                        accept="image/*" 
+                        onChange={handleLogoChange}
+                      />
                     </div>
                     <div className="space-y-1">
                       <h4 className="text-sm font-bold">Logotipo da Plataforma</h4>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Recomendado: SVG ou PNG transparente (512x512px)</p>
+                      <p className="text-[9px] text-primary font-bold uppercase cursor-pointer" onClick={() => logoInputRef.current?.click()}>Clique para fazer o upload</p>
                     </div>
                   </div>
                 </div>

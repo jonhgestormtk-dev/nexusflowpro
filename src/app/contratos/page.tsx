@@ -19,7 +19,8 @@ import {
   Edit2,
   X,
   ShieldAlert,
-  Lock
+  Lock,
+  AlertTriangle
 } from "lucide-react"
 import { extractContractDetails, AIContractDetailExtractorOutput } from "@/ai/flows/ai-contract-detail-extractor"
 
@@ -75,6 +76,14 @@ export default function ContractsPage() {
   }, [db, user])
   
   const { data: contracts, isLoading } = useCollection(contractsQuery)
+
+  // Sincronização de faturas para detecção de atrasos
+  const invoicesQuery = useMemoFirebase(() => {
+    if (!user) return null
+    return query(collection(db, "invoices"))
+  }, [db, user])
+
+  const { data: allInvoices } = useCollection(invoicesQuery)
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -255,8 +264,6 @@ export default function ContractsPage() {
   }
 
   const handleConfirmDelete = () => {
-    // Para protótipo, usamos uma senha padrão "admin123"
-    // Em produção, isso verificaria custom claims ou re-autenticaria o usuário
     if (adminPassword === "admin123") {
       if (contractToDeleteId) {
         deleteDocumentNonBlocking(doc(db, "contracts", contractToDeleteId))
@@ -281,6 +288,18 @@ export default function ContractsPage() {
     setSelectedContract(contract)
     setIsDetailsOpen(true)
     setIsEditing(false)
+  }
+
+  const getContractStatus = (contractId: string) => {
+    if (!allInvoices) return { hasOverdue: false };
+    const contractInvoices = allInvoices.filter(inv => inv.contractId === contractId);
+    const now = new Date();
+    const hasOverdue = contractInvoices.some(inv => 
+      inv.paymentStatus !== "Pago" && 
+      inv.dueDate && 
+      new Date(inv.dueDate) < now
+    );
+    return { hasOverdue };
   }
 
   return (
@@ -382,77 +401,102 @@ export default function ContractsPage() {
             <p className="text-muted-foreground font-medium">Sincronizando contratos...</p>
           </div>
         ) : contracts && contracts.length > 0 ? (
-          contracts.map((contract) => (
-            <Card key={contract.id} className="card-hover bg-card/50 border-border overflow-hidden group cursor-pointer" onClick={() => openDetails(contract)}>
-              <CardHeader className="pb-2 relative">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="absolute right-2 top-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
-                  onClick={(e) => { e.stopPropagation(); handleDeleteRequest(contract.id); }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-                <div className="flex items-center justify-between mb-2">
-                  <Badge 
+          contracts.map((contract) => {
+            const { hasOverdue } = getContractStatus(contract.id);
+            return (
+              <Card key={contract.id} className={cn(
+                "card-hover bg-card/50 border-border overflow-hidden group cursor-pointer relative",
+                hasOverdue && "border-destructive/50 shadow-lg shadow-destructive/5"
+              )} onClick={() => openDetails(contract)}>
+                <CardHeader className="pb-2 relative">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="absolute right-2 top-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteRequest(contract.id); }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex gap-2">
+                      <Badge 
+                        variant="outline" 
+                        className={cn(
+                          "text-[10px] font-black tracking-widest px-2",
+                          contract.status === "Ativo" ? "border-emerald-500/30 text-emerald-500 bg-emerald-500/5" : "border-destructive/30 text-destructive bg-destructive/5"
+                        )}
+                      >
+                        {contract.status?.toUpperCase() || "ATIVO"}
+                      </Badge>
+                      {hasOverdue && (
+                        <Badge 
+                          variant="destructive" 
+                          className="text-[10px] font-black tracking-widest px-2 bg-destructive/90 animate-pulse"
+                        >
+                          FATURA EM ATRASO
+                        </Badge>
+                      )}
+                    </div>
+                    <span className="text-[10px] font-bold text-muted-foreground opacity-50">#{contract.id.slice(-4)}</span>
+                  </div>
+                  <CardTitle className="text-xl group-hover:text-primary transition-colors truncate">{contract.clientName}</CardTitle>
+                  <CardDescription className="truncate font-medium">{contract.serviceType}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4 pt-4">
+                  {hasOverdue && (
+                    <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive mb-2">
+                      <AlertTriangle className="h-4 w-4 shrink-0" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">Ação Necessária: Pendência Financeira</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between py-3 border-y border-border/50">
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">MENSALIDADE</span>
+                      <div className="flex items-center gap-1.5">
+                        <CreditCard className="h-3.5 w-3.5 text-accent" />
+                        <span className="text-sm font-black">R$ {Number(contract.monthlyValue || 0).toLocaleString('pt-BR')}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-0.5 text-right">
+                      <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">INÍCIO</span>
+                      <div className="flex items-center gap-1.5 justify-end">
+                        <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+                        <span className="text-sm font-medium">{contract.startDate || "N/A"}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-[10px] font-black tracking-widest">
+                      <span className="text-muted-foreground">SCORE DE SAÚDE</span>
+                      <span className={cn(contract.score > 80 && !hasOverdue ? "text-emerald-500" : "text-destructive")}>
+                        {hasOverdue ? "Risco de Cancelamento" : `${contract.score || 0}%`}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                      <div 
+                        className={cn(
+                          "h-full transition-all duration-1000",
+                          contract.score > 80 && !hasOverdue ? "bg-emerald-500" : "bg-destructive"
+                        )} 
+                        style={{ width: `${hasOverdue ? 30 : (contract.score || 0)}%` }} 
+                      />
+                    </div>
+                  </div>
+
+                  <Button 
                     variant="outline" 
                     className={cn(
-                      "text-[10px] font-black tracking-widest px-2",
-                      contract.status === "Ativo" ? "border-emerald-500/30 text-emerald-500 bg-emerald-500/5" : "border-destructive/30 text-destructive bg-destructive/5"
+                      "w-full h-9 text-xs font-bold border-border",
+                      hasOverdue && "border-destructive/30 hover:bg-destructive/10 text-destructive"
                     )}
                   >
-                    {contract.status?.toUpperCase() || "ATIVO"}
-                  </Badge>
-                  <span className="text-[10px] font-bold text-muted-foreground opacity-50">#{contract.id.slice(-4)}</span>
-                </div>
-                <CardTitle className="text-xl group-hover:text-primary transition-colors truncate">{contract.clientName}</CardTitle>
-                <CardDescription className="truncate font-medium">{contract.serviceType}</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4 pt-4">
-                <div className="flex items-center justify-between py-3 border-y border-border/50">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">MENSALIDADE</span>
-                    <div className="flex items-center gap-1.5">
-                      <CreditCard className="h-3.5 w-3.5 text-accent" />
-                      <span className="text-sm font-black">R$ {Number(contract.monthlyValue || 0).toLocaleString('pt-BR')}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-0.5 text-right">
-                    <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">INÍCIO</span>
-                    <div className="flex items-center gap-1.5 justify-end">
-                      <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-sm font-medium">{contract.startDate || "N/A"}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-[10px] font-black tracking-widest">
-                    <span className="text-muted-foreground">SCORE DE SAÚDE</span>
-                    <span className={cn(contract.score > 80 ? "text-emerald-500" : "text-destructive")}>
-                      {contract.score || 0}%
-                    </span>
-                  </div>
-                  <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                    <div 
-                      className={cn(
-                        "h-full transition-all duration-1000",
-                        contract.score > 80 ? "bg-emerald-500" : "bg-destructive"
-                      )} 
-                      style={{ width: `${contract.score || 0}%` }} 
-                    />
-                  </div>
-                </div>
-
-                <Button 
-                  variant="outline" 
-                  className="w-full h-9 text-xs font-bold border-border"
-                >
-                  Ver Detalhes <ArrowRight className="ml-2 h-3 w-3" />
-                </Button>
-              </CardContent>
-            </Card>
-          ))
+                    Ver Detalhes <ArrowRight className="ml-2 h-3 w-3" />
+                  </Button>
+                </CardContent>
+              </Card>
+            )
+          })
         ) : (
           <div className="col-span-full py-24 text-center border-2 border-dashed border-border rounded-xl bg-muted/5">
              <div className="p-4 rounded-full bg-muted/20 w-16 h-16 flex items-center justify-center mx-auto mb-4">
@@ -482,14 +526,21 @@ export default function ContractsPage() {
                     </DialogDescription>
                   </div>
                   {!isEditing && (
-                    <Badge 
-                      className={cn(
-                        "font-black tracking-widest px-3 py-1",
-                        selectedContract.status === "Ativo" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-destructive/10 text-destructive border-destructive/20"
+                    <div className="flex flex-col items-end gap-2">
+                      <Badge 
+                        className={cn(
+                          "font-black tracking-widest px-3 py-1",
+                          selectedContract.status === "Ativo" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-destructive/10 text-destructive border-destructive/20"
+                        )}
+                      >
+                        {selectedContract.status?.toUpperCase() || "ATIVO"}
+                      </Badge>
+                      {getContractStatus(selectedContract.id).hasOverdue && (
+                        <Badge variant="destructive" className="font-black text-[10px] animate-pulse">
+                          PENDÊNCIA FINANCEIRA
+                        </Badge>
                       )}
-                    >
-                      {selectedContract.status?.toUpperCase() || "ATIVO"}
-                    </Badge>
+                    </div>
                   )}
                 </div>
               </DialogHeader>
@@ -587,8 +638,8 @@ export default function ContractsPage() {
                           <div className="flex flex-col gap-1">
                             <span className="text-muted-foreground font-medium">Saúde do Contrato:</span>
                             <div className="flex items-center gap-2">
-                              <span className={cn("font-bold", selectedContract.score > 80 ? "text-emerald-500" : "text-destructive")}>
-                                {selectedContract.score || 0}%
+                              <span className={cn("font-bold", selectedContract.score > 80 && !getContractStatus(selectedContract.id).hasOverdue ? "text-emerald-500" : "text-destructive")}>
+                                {getContractStatus(selectedContract.id).hasOverdue ? "Crítico (Atraso)" : `${selectedContract.score || 0}%`}
                               </span>
                             </div>
                           </div>

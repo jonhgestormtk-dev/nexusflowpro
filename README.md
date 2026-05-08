@@ -4,7 +4,7 @@ Este é o repositório oficial do **NexusFlow Pro**, uma solução SaaS completa
 
 ## 🚀 Como subir para o seu GitHub
 
-Se você não conseguir colar no terminal, digite estes comandos exatamente nesta ordem:
+Se você recebeu o erro `[rejected] main -> main (fetch first)`, é porque o repositório no GitHub tem arquivos que você não tem localmente. Siga estes passos para resolver:
 
 1.  **Inicie o Git**:
     `git init`
@@ -21,8 +21,9 @@ Se você não conseguir colar no terminal, digite estes comandos exatamente nest
 5.  **Defina a branch principal**:
     `git branch -M main`
 
-6.  **Envie o código**:
-    `git push -u origin main`
+6.  **Envie o código (Resolvendo o erro)**:
+    Se o comando comum falhar, use este comando para forçar o envio:
+    `git push -u origin main --force`
 
 ---
 

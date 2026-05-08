@@ -2,14 +2,14 @@
 
 Este é o repositório oficial do **NexusFlow Pro**, uma solução SaaS completa para gestão de clientes, contratos e faturamento recorrente.
 
-## 🚀 Como subir para o seu GitHub
+## 🚀 Como subir para o seu GitHub (Correção de Erros)
 
-Se você recebeu o erro `[rejected] main -> main (fetch first)`, é porque o repositório no GitHub tem arquivos que você não tem localmente. Siga estes passos para resolver:
+Se você recebeu o erro `remote origin already exists`, pule para o passo 3. Se o erro foi `[rejected] main -> main`, use o passo 6.
 
 1.  **Inicie o Git**:
     `git init`
 
-2.  **Adicione o repositório remoto**:
+2.  **Adicione o repositório remoto** (Se der erro aqui, pode ignorar e seguir):
     `git remote add origin https://github.com/jonhgestormtk-dev/nexusflowpro.git`
 
 3.  **Prepare os arquivos**:
@@ -21,8 +21,8 @@ Se você recebeu o erro `[rejected] main -> main (fetch first)`, é porque o rep
 5.  **Defina a branch principal**:
     `git branch -M main`
 
-6.  **Envie o código (Resolvendo o erro)**:
-    Se o comando comum falhar, use este comando para forçar o envio:
+6.  **Envie o código (Forçando o envio para resolver o erro 'rejected')**:
+    Use este comando para substituir os arquivos do GitHub pelo seu código local:
     `git push -u origin main --force`
 
 ---

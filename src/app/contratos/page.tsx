@@ -17,7 +17,9 @@ import {
   BadgeAlert,
   Clock,
   Edit2,
-  X
+  X,
+  ShieldAlert,
+  Lock
 } from "lucide-react"
 import { extractContractDetails, AIContractDetailExtractorOutput } from "@/ai/flows/ai-contract-detail-extractor"
 
@@ -61,6 +63,11 @@ export default function ContractsPage() {
   const [selectedContract, setSelectedContract] = React.useState<any>(null)
   const [isDetailsOpen, setIsDetailsOpen] = React.useState(false)
   const [isEditing, setIsEditing] = React.useState(false)
+
+  // Estados para segurança de exclusão
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = React.useState(false)
+  const [contractToDeleteId, setContractToDeleteId] = React.useState<string | null>(null)
+  const [adminPassword, setAdminPassword] = React.useState("")
 
   const contractsQuery = useMemoFirebase(() => {
     if (!user) return null
@@ -126,7 +133,6 @@ export default function ContractsPage() {
     try {
       if (dateStr && dateStr.includes('/')) {
         const [day, month, year] = dateStr.split('/');
-        // Mês em JS é 0-indexed
         date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
       } else if (dateStr && dateStr.includes('-')) {
         date = new Date(dateStr);
@@ -144,7 +150,6 @@ export default function ContractsPage() {
     const now = new Date();
     const startDate = parseStartDate(extractedData.startDate);
     
-    // Vencimento da primeira fatura: 30 dias após o início
     let dueDate = new Date(startDate);
     dueDate.setDate(dueDate.getDate() + 30);
 
@@ -207,15 +212,12 @@ export default function ContractsPage() {
       updatedAt: new Date().toISOString()
     }
 
-    // Calcula nova data de vencimento baseada na data de início atualizada
     const startDate = parseStartDate(updatedData.startDate);
     let newDueDate = new Date(startDate);
     newDueDate.setDate(newDueDate.getDate() + 30);
 
-    // 1. Atualiza o documento do contrato
     updateDocumentNonBlocking(doc(db, "contracts", id), updatedData)
     
-    // 2. Sincroniza faturas pendentes vinculadas a este contrato
     try {
       const q = query(
         collection(db, "invoices"), 
@@ -228,7 +230,7 @@ export default function ContractsPage() {
         updateDocumentNonBlocking(doc(db, "invoices", invoiceDoc.id), {
           amount: updatedData.monthlyValue,
           clientName: updatedData.clientName,
-          dueDate: newDueDate.toISOString(), // Sincroniza a data de vencimento
+          dueDate: newDueDate.toISOString(),
           updatedAt: new Date().toISOString()
         });
       });
@@ -245,12 +247,34 @@ export default function ContractsPage() {
     })
   }
 
-  const handleDeleteContract = (id: string) => {
-    deleteDocumentNonBlocking(doc(db, "contracts", id))
-    toast({
-      title: "Contrato removido",
-      description: "O registro foi excluído com sucesso.",
-    })
+  // Novo fluxo de exclusão segura
+  const handleDeleteRequest = (id: string) => {
+    setContractToDeleteId(id)
+    setAdminPassword("")
+    setIsDeleteConfirmOpen(true)
+  }
+
+  const handleConfirmDelete = () => {
+    // Para protótipo, usamos uma senha padrão "admin123"
+    // Em produção, isso verificaria custom claims ou re-autenticaria o usuário
+    if (adminPassword === "admin123") {
+      if (contractToDeleteId) {
+        deleteDocumentNonBlocking(doc(db, "contracts", contractToDeleteId))
+        toast({
+          title: "Contrato removido",
+          description: "O registro foi excluído com sucesso por um administrador.",
+        })
+      }
+      setIsDeleteConfirmOpen(false)
+      setContractToDeleteId(null)
+      setAdminPassword("")
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Acesso Negado",
+        description: "Senha de administrador incorreta. Operação cancelada.",
+      })
+    }
   }
 
   const openDetails = (contract: any) => {
@@ -365,7 +389,7 @@ export default function ContractsPage() {
                   variant="ghost" 
                   size="icon" 
                   className="absolute right-2 top-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:bg-destructive/10"
-                  onClick={(e) => { e.stopPropagation(); handleDeleteContract(contract.id); }}
+                  onClick={(e) => { e.stopPropagation(); handleDeleteRequest(contract.id); }}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -574,30 +598,90 @@ export default function ContractsPage() {
                 )}
               </div>
 
-              <DialogFooter className="flex flex-col sm:flex-row gap-2">
-                {isEditing ? (
-                  <>
-                    <Button variant="outline" onClick={() => setIsEditing(false)} className="w-full sm:w-auto">
-                      <X className="mr-2 h-4 w-4" /> Descartar
-                    </Button>
-                    <Button onClick={handleUpdateContract} className="bg-primary w-full sm:w-auto" disabled={isSaving}>
-                      {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
-                      Salvar Alterações
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button variant="outline" onClick={() => setIsDetailsOpen(false)} className="w-full sm:w-auto">
-                      Fechar
-                    </Button>
-                    <Button onClick={() => setIsEditing(true)} className="bg-primary w-full sm:w-auto">
-                      <Edit2 className="mr-2 h-4 w-4" /> Editar Contrato
-                    </Button>
-                  </>
+              <div className="flex gap-2 justify-end">
+                {!isEditing && (
+                  <Button 
+                    variant="ghost" 
+                    className="text-destructive hover:bg-destructive/10"
+                    onClick={() => handleDeleteRequest(selectedContract.id)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" /> Excluir Contrato
+                  </Button>
                 )}
-              </DialogFooter>
+                <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                  {isEditing ? (
+                    <>
+                      <Button variant="outline" onClick={() => setIsEditing(false)} className="w-full sm:w-auto">
+                        <X className="mr-2 h-4 w-4" /> Descartar
+                      </Button>
+                      <Button onClick={handleUpdateContract} className="bg-primary w-full sm:w-auto" disabled={isSaving}>
+                        {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-2 h-4 w-4" />}
+                        Salvar Alterações
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="outline" onClick={() => setIsDetailsOpen(false)} className="w-full sm:w-auto">
+                        Fechar
+                      </Button>
+                      <Button onClick={() => setIsEditing(true)} className="bg-primary w-full sm:w-auto">
+                        <Edit2 className="mr-2 h-4 w-4" /> Editar Contrato
+                      </Button>
+                    </>
+                  )}
+                </DialogFooter>
+              </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação com Senha */}
+      <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <DialogContent className="sm:max-w-[400px] bg-card border-destructive/20">
+          <DialogHeader>
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive mb-2">
+              <ShieldAlert className="h-6 w-6" />
+            </div>
+            <DialogTitle className="text-xl font-bold">Autorização de Segurança</DialogTitle>
+            <DialogDescription>
+              Esta ação é irreversível. Para excluir este contrato, insira a senha de administrador.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="adminPassword">Senha do Administrador / Gerente</Label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  id="adminPassword" 
+                  type="password" 
+                  placeholder="••••••••" 
+                  className="pl-10 bg-muted/30 border-border"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleConfirmDelete()}
+                  autoFocus
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground italic font-medium">
+                * Senha padrão para este protótipo: admin123
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsDeleteConfirmOpen(false)} className="w-full">
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleConfirmDelete} 
+              className="w-full font-bold shadow-lg shadow-destructive/20"
+              disabled={!adminPassword}
+            >
+              Confirmar Exclusão
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

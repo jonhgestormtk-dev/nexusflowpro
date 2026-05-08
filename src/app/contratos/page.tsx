@@ -175,6 +175,10 @@ export default function ContractsPage() {
     }
 
     try {
+      // Busca contagem de faturas para gerar o número sequencial
+      const invoicesSnapshot = await getDocs(collection(db, "invoices"));
+      const nextInvoiceNumber = (invoicesSnapshot.size + 1).toString().padStart(6, '0');
+
       const contractRef = await addDocumentNonBlocking(collection(db, "contracts"), newContract);
       
       if (contractRef) {
@@ -186,6 +190,7 @@ export default function ContractsPage() {
           dueDate: dueDate.toISOString(),
           paymentStatus: "Pendente",
           paymentMethod: "Manual",
+          invoiceNumber: nextInvoiceNumber,
           createdAt: now.toISOString(),
           updatedAt: now.toISOString()
         };
@@ -197,7 +202,7 @@ export default function ContractsPage() {
         setExtractedData(null)
         toast({
           title: "Contrato Ativado",
-          description: `Débito de R$ ${newContract.monthlyValue} gerado para ${newContract.clientName}.`,
+          description: `Débito #${nextInvoiceNumber} de R$ ${newContract.monthlyValue} gerado para ${newContract.clientName}.`,
         })
       }
     } catch (err) {

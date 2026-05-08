@@ -65,7 +65,7 @@ export default function BillingPage() {
   // Sincronização em tempo real
   const invoicesQuery = useMemoFirebase(() => {
     if (!user) return null
-    return query(collection(db, "invoices"), orderBy("createdAt", "desc"))
+    return query(collection(db, "invoices"), orderBy("invoiceNumber", "desc"))
   }, [db, user])
 
   const contractsQuery = useMemoFirebase(() => {
@@ -92,7 +92,8 @@ export default function BillingPage() {
     return invoices.filter(inv => {
       const name = (inv.clientName || "").toLowerCase()
       const id = (inv.id || "").toLowerCase()
-      return name.includes(term) || id.includes(term)
+      const num = (inv.invoiceNumber || "").toLowerCase()
+      return name.includes(term) || id.includes(term) || num.includes(term)
     })
   }, [invoices, searchTerm])
 
@@ -136,12 +137,13 @@ export default function BillingPage() {
     const context = getContextInfo(inv)
     const dueDate = new Date(inv.dueDate).toLocaleDateString('pt-BR')
     const amount = Number(inv.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    const invNum = inv.invoiceNumber || inv.id.slice(-6).toUpperCase();
     
     const message = encodeURIComponent(
       `Prezado(a) *${inv.clientName}*,\n\n` +
       `Informamos que a fatura referente à prestação de serviços de *${context.serviceType}* encontra-se disponível para pagamento.\n\n` +
       `*DETALHES DA COBRANÇA:*\n` +
-      `• Fatura: #${inv.id.slice(-6).toUpperCase()}\n` +
+      `• Fatura: #${invNum}\n` +
       `• Valor: ${amount}\n` +
       `• Vencimento: ${dueDate}\n\n` +
       `*DADOS PARA PAGAMENTO:*\n` +
@@ -159,7 +161,8 @@ export default function BillingPage() {
     const context = getContextInfo(inv)
     const dueDate = new Date(inv.dueDate).toLocaleDateString('pt-BR')
     const amount = Number(inv.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-    const subject = encodeURIComponent(`Faturamento Pendente: ${context.serviceType} - Fatura #${inv.id.slice(-6).toUpperCase()}`)
+    const invNum = inv.invoiceNumber || inv.id.slice(-6).toUpperCase();
+    const subject = encodeURIComponent(`Faturamento Pendente: ${context.serviceType} - Fatura #${invNum}`)
     
     const body = encodeURIComponent(
       `Prezado(a) ${inv.clientName},\n\n` +
@@ -167,7 +170,7 @@ export default function BillingPage() {
       `Gostaríamos de formalizar o envio da fatura referente aos serviços de ${context.serviceType}, conforme os detalhes abaixo:\n\n` +
       `DETALHES DO FATURAMENTO\n` +
       `-----------------------------------\n` +
-      `Fatura: #${inv.id.slice(-6).toUpperCase()}\n` +
+      `Fatura: #${invNum}\n` +
       `Serviço: ${context.serviceType}\n` +
       `Valor Total: ${amount}\n` +
       `Data de Vencimento: ${dueDate}\n` +
@@ -224,6 +227,7 @@ export default function BillingPage() {
     setIsProcessing(true)
     
     let createdCount = 0
+    let currentInvoiceCount = invoices.length;
     const now = new Date()
     const currentMonth = now.getMonth()
     const currentYear = now.getFullYear()
@@ -261,6 +265,8 @@ export default function BillingPage() {
           const dueDate = new Date(iterYear, iterMonth, day)
           if (isNaN(dueDate.getTime())) dueDate.setDate(10)
 
+          const nextNum = (currentInvoiceCount + 1 + createdCount).toString().padStart(6, '0');
+
           const newInvoice = {
             contractId: contract.id,
             clientName: contract.clientName,
@@ -269,6 +275,7 @@ export default function BillingPage() {
             dueDate: dueDate.toISOString(),
             paymentStatus: "Pendente",
             paymentMethod: "Manual",
+            invoiceNumber: nextNum,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString()
           }
@@ -401,7 +408,7 @@ export default function BillingPage() {
               ) : filteredInvoices.length > 0 ? (
                 filteredInvoices.map((inv) => (
                   <TableRow key={inv.id} className="hover:bg-muted/20 transition-colors group">
-                    <TableCell className="font-mono text-[10px] font-bold text-primary">#{inv.id.slice(-6).toUpperCase()}</TableCell>
+                    <TableCell className="font-mono text-[10px] font-bold text-primary">#{inv.invoiceNumber || inv.id.slice(-6).toUpperCase()}</TableCell>
                     <TableCell className="font-semibold text-sm truncate max-w-[250px]">{inv.clientName || "Cliente não identificado"}</TableCell>
                     <TableCell className="font-bold text-sm text-foreground">R$ {Number(inv.amount || 0).toLocaleString('pt-BR')}</TableCell>
                     <TableCell className="text-muted-foreground text-xs">

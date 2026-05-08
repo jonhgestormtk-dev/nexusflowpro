@@ -16,7 +16,10 @@ import {
   Trash2,
   Check,
   RefreshCw,
-  Sparkles
+  Sparkles,
+  MessageSquare,
+  Mail,
+  Send
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -36,6 +39,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import { 
   useCollection, 
@@ -57,7 +61,7 @@ export default function BillingPage() {
   const [searchTerm, setSearchTerm] = React.useState("")
   const [isProcessing, setIsProcessing] = React.useState(false)
 
-  // Sincronização em tempo real das faturas
+  // Sincronização em tempo real
   const invoicesQuery = useMemoFirebase(() => {
     if (!user) return null
     return query(collection(db, "invoices"), orderBy("createdAt", "desc"))
@@ -68,8 +72,14 @@ export default function BillingPage() {
     return collection(db, "contracts")
   }, [db, user])
 
+  const clientsQuery = useMemoFirebase(() => {
+    if (!user) return null
+    return collection(db, "clients")
+  }, [db, user])
+
   const { data: invoices, isLoading: loadingInvoices } = useCollection(invoicesQuery)
   const { data: contracts, isLoading: loadingContracts } = useCollection(contractsQuery)
+  const { data: clients } = useCollection(clientsQuery)
 
   const filteredInvoices = React.useMemo(() => {
     if (!invoices) return []
@@ -100,6 +110,43 @@ export default function BillingPage() {
     return { mrr, pending, delinquency }
   }, [invoices, contracts])
 
+  // Busca contato do cliente para envio
+  const getClientContact = (clientName: string) => {
+    const client = clients?.find(c => 
+      c.fullName?.toLowerCase() === clientName?.toLowerCase() || 
+      c.companyName?.toLowerCase() === clientName?.toLowerCase()
+    )
+    return {
+      email: client?.email || "",
+      whatsapp: client?.whatsapp?.replace(/\D/g, '') || ""
+    }
+  }
+
+  const handleSendWhatsApp = (inv: any) => {
+    const contact = getClientContact(inv.clientName)
+    const dueDate = new Date(inv.dueDate).toLocaleDateString('pt-BR')
+    const amount = Number(inv.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    const message = encodeURIComponent(
+      `Olá ${inv.clientName}, tudo bem? 🚀\n\nIdentificamos uma fatura pendente em nosso sistema:\n\n📄 *Fatura:* #${inv.id.slice(-6).toUpperCase()}\n💰 *Valor:* ${amount}\n📅 *Vencimento:* ${dueDate}\n\nPor favor, entre em contato caso tenha alguma dúvida ou realize o pagamento para manter seus serviços ativos. Se já efetuou o pagamento, favor desconsiderar.`
+    )
+    
+    window.open(`https://wa.me/${contact.whatsapp}?text=${message}`, '_blank')
+    toast({ title: "WhatsApp Iniciado", description: `Abrindo conversa com ${inv.clientName}.` })
+  }
+
+  const handleSendEmail = (inv: any) => {
+    const contact = getClientContact(inv.clientName)
+    const dueDate = new Date(inv.dueDate).toLocaleDateString('pt-BR')
+    const amount = Number(inv.amount).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+    const subject = encodeURIComponent(`Fatura Pendente - #${inv.id.slice(-6).toUpperCase()}`)
+    const body = encodeURIComponent(
+      `Olá ${inv.clientName},\n\nEsperamos que esteja tudo bem.\n\nInformamos que consta em nosso sistema uma fatura pendente com os seguintes detalhes:\n\nReferência: #${inv.id.slice(-6).toUpperCase()}\nValor: ${amount}\nVencimento: ${dueDate}\n\nCaso já tenha realizado o pagamento, pedimos a gentileza de nos enviar o comprovante. Em caso de dúvidas, nossa equipe financeira está à disposição.\n\nAtenciosamente,\nEquipe NexusFlow Pro`
+    )
+    
+    window.location.href = `mailto:${contact.email}?subject=${subject}&body=${body}`
+    toast({ title: "E-mail Preparado", description: `Enviando cobrança para ${contact.email || inv.clientName}.` })
+  }
+
   const handleMarkAsPaid = (invoiceId: string) => {
     updateDocumentNonBlocking(doc(db, "invoices", invoiceId), {
       paymentStatus: "Pago",
@@ -120,7 +167,6 @@ export default function BillingPage() {
     })
   }
 
-  // Função para parsear datas de forma robusta
   const parseContractDate = (dateStr: string) => {
     if (!dateStr) return new Date();
     try {
@@ -135,7 +181,6 @@ export default function BillingPage() {
     }
   }
 
-  // LÓGICA DE RECORRÊNCIA AVANÇADA: Gera faturas retroativas e atuais
   const handleProcessBatch = async () => {
     if (!contracts || !invoices) return
     setIsProcessing(true)
@@ -152,7 +197,6 @@ export default function BillingPage() {
       const startMonth = contractStart.getMonth()
       const startYear = contractStart.getFullYear()
       
-      // Itera desde o ano/mês de início do contrato até o mês atual
       let iterDate = new Date(startYear, startMonth, 1)
       const targetDate = new Date(currentYear, currentMonth, 1)
 
@@ -160,7 +204,6 @@ export default function BillingPage() {
         const iterMonth = iterDate.getMonth()
         const iterYear = iterDate.getFullYear()
 
-        // Verifica se já existe fatura deste contrato para este mês/ano específico
         const hasInvoice = invoices.some(inv => {
           if (inv.contractId !== contract.id) return false
           const dueDate = new Date(inv.dueDate)
@@ -168,7 +211,6 @@ export default function BillingPage() {
         })
 
         if (!hasInvoice) {
-          // Mantém o dia de vencimento original ou padrão dia 10
           let day = 10;
           try {
             if (contract.startDate && contract.startDate.includes('/')) {
@@ -196,8 +238,6 @@ export default function BillingPage() {
           addDocumentNonBlocking(collection(db, "invoices"), newInvoice)
           createdCount++
         }
-
-        // Avança um mês
         iterDate.setMonth(iterDate.getMonth() + 1)
       }
     }
@@ -207,12 +247,12 @@ export default function BillingPage() {
       if (createdCount > 0) {
         toast({
           title: "Recorrência Processada",
-          description: `${createdCount} novas faturas (incluindo retroativas) foram geradas.`,
+          description: `${createdCount} novas faturas geradas.`,
         })
       } else {
         toast({
           title: "Tudo em dia",
-          description: "Não foram encontradas faturas pendentes para o período contratual.",
+          description: "Não foram encontradas faturas pendentes para o período.",
         })
       }
     }, 1500)
@@ -230,7 +270,7 @@ export default function BillingPage() {
             <Download className="mr-2 h-4 w-4" /> Exportar
           </Button>
           <Button 
-            className="bg-primary hover:bg-primary/90 w-full sm:w-auto font-bold" 
+            className="bg-primary hover:bg-primary/90 w-full sm:w-auto font-bold shadow-lg shadow-primary/20" 
             onClick={handleProcessBatch}
             disabled={isProcessing}
           >
@@ -256,7 +296,7 @@ export default function BillingPage() {
         </Card>
         <Card className="border-border bg-card/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">A Receber (Total Pendente)</CardTitle>
+            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">A Receber</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black text-accent">
@@ -269,7 +309,7 @@ export default function BillingPage() {
         </Card>
         <Card className="border-border bg-card/50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Inadimplência Bruta</CardTitle>
+            <CardTitle className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Inadimplência</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black text-destructive">
@@ -297,7 +337,7 @@ export default function BillingPage() {
         </Button>
       </div>
 
-      <Card className="border-border bg-card/50 overflow-hidden">
+      <Card className="border-border bg-card/50 overflow-hidden shadow-xl">
         <CardContent className="p-0">
           <Table>
             <TableHeader className="bg-muted/30">
@@ -322,7 +362,7 @@ export default function BillingPage() {
                 </TableRow>
               ) : filteredInvoices.length > 0 ? (
                 filteredInvoices.map((inv) => (
-                  <TableRow key={inv.id} className="hover:bg-muted/20 transition-colors">
+                  <TableRow key={inv.id} className="hover:bg-muted/20 transition-colors group">
                     <TableCell className="font-mono text-[10px] font-bold text-primary">#{inv.id.slice(-6).toUpperCase()}</TableCell>
                     <TableCell className="font-semibold text-sm truncate max-w-[250px]">{inv.clientName || "Cliente não identificado"}</TableCell>
                     <TableCell className="font-bold text-sm text-foreground">R$ {Number(inv.amount || 0).toLocaleString('pt-BR')}</TableCell>
@@ -349,17 +389,33 @@ export default function BillingPage() {
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="bg-popover border-border">
+                        <DropdownMenuContent align="end" className="bg-popover border-border min-w-[180px]">
                           {inv.paymentStatus !== "Pago" && (
-                            <DropdownMenuItem 
-                              className="text-[10px] font-bold uppercase cursor-pointer"
-                              onClick={() => handleMarkAsPaid(inv.id)}
-                            >
-                              <Check className="mr-2 h-3 w-3" /> Liquidar Fatura
-                            </DropdownMenuItem>
+                            <>
+                              <DropdownMenuItem 
+                                className="text-[10px] font-bold uppercase cursor-pointer py-2"
+                                onClick={() => handleMarkAsPaid(inv.id)}
+                              >
+                                <Check className="mr-2 h-3 w-3 text-emerald-500" /> Liquidar Fatura
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator className="opacity-10" />
+                              <DropdownMenuItem 
+                                className="text-[10px] font-bold uppercase cursor-pointer py-2"
+                                onClick={() => handleSendWhatsApp(inv)}
+                              >
+                                <MessageSquare className="mr-2 h-3 w-3 text-emerald-500" /> Enviar WhatsApp
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                className="text-[10px] font-bold uppercase cursor-pointer py-2"
+                                onClick={() => handleSendEmail(inv)}
+                              >
+                                <Mail className="mr-2 h-3 w-3 text-blue-500" /> Enviar E-mail
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator className="opacity-10" />
+                            </>
                           )}
                           <DropdownMenuItem 
-                            className="text-[10px] font-bold uppercase cursor-pointer text-destructive focus:text-destructive"
+                            className="text-[10px] font-bold uppercase cursor-pointer py-2 text-destructive focus:text-destructive"
                             onClick={() => handleDeleteInvoice(inv.id)}
                           >
                             <Trash2 className="mr-2 h-3 w-3" /> Excluir Registro
@@ -372,7 +428,7 @@ export default function BillingPage() {
               ) : (
                 <TableRow>
                   <TableCell colSpan={6} className="h-24 text-center text-muted-foreground text-sm">
-                    Nenhum débito encontrado. Clique em "Gerar Recorrência" para atualizar.
+                    Nenhum débito encontrado.
                   </TableCell>
                 </TableRow>
               )}

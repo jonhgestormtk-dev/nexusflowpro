@@ -36,12 +36,13 @@ Se você não conseguir colar no terminal, digite estes comandos exatamente nest
 
 ## 📱 Funcionalidades Implementadas
 
-- **Dashboard Inteligente**: Métricas de MRR e inadimplência em tempo real.
-- **Gestão de Contratos**: Extração automática de dados via IA a partir de PDFs.
+- **Dashboard Inteligente**: Métricas de MRR e inadimplência em tempo real com gráficos Recharts.
+- **Gestão de Contratos**: Extração automática de dados via IA a partir de PDFs usando Genkit.
 - **Faturamento Automatizado**: Geração de faturas recorrentes e controle de numeração sequencial.
-- **Comunicação de Cobrança**: Envio formal de débitos via WhatsApp e E-mail.
+- **Comunicação de Cobrança**: Envio formal de débitos via WhatsApp e E-mail com instruções de pagamento.
 - **CRM / Pipeline**: Gestão de leads com conversão automática para clientes.
 - **Segurança**: Exclusão de dados sensíveis protegida por senha de administrador (`admin123`).
+- **Identidade Visual**: Personalização de logotipo e dados da empresa nas configurações.
 
 ---
 *Este projeto foi prototipado no Firebase Studio.*
